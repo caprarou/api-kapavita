@@ -1,0 +1,183 @@
+import { useEffect } from 'react';
+import L from 'leaflet';
+import type { Map as LeafletMap } from 'leaflet';
+
+export type OverlayKey = 'population' | 'airports' | 'aircraft' | 'marine' | 'weather' | 'airQuality';
+type Props = {
+  mapRef: React.MutableRefObject<LeafletMap | null>;
+  active: Record<OverlayKey, boolean>;
+  onArea: (name: string, detail: string) => void;
+  onPlane: (plane: Plane & { snapshotTime: number }) => void;
+  onAirQuality: (reading: AirReading) => void;
+  onStatus: (key: OverlayKey, status: string) => void;
+};
+type Airport = { name: string; ident: string; iata: string; lat: number; lon: number; municipality: string };
+export type AirReading = { city: string; time: string; aqi: number; pm25: number | null; pm10: number | null };
+export const airQualityBand = (value: number) => value <= 20 ? { name: 'Καλή', color: '#267d65', message: 'Η ποιότητα του αέρα είναι καλή για τις συνήθεις υπαίθριες δραστηριότητες.' } : value <= 40 ? { name: 'Ικανοποιητική', color: '#459a69', message: 'Οι περισσότεροι μπορούν να συνεχίσουν κανονικά τις δραστηριότητές τους.' } : value <= 60 ? { name: 'Μέτρια', color: '#ae832a', message: 'Αν έχεις αναπνευστική ευαισθησία, λάβε υπόψη σου την ποιότητα του αέρα πριν από έντονη άσκηση έξω.' } : value <= 80 ? { name: 'Κακή', color: '#c56c33', message: 'Αν είσαι ευαίσθητος στην ατμοσφαιρική ρύπανση, περιόρισε την έντονη άσκηση έξω.' } : value <= 100 ? { name: 'Πολύ κακή', color: '#ad4c63', message: 'Προτίμησε δραστηριότητες σε εσωτερικό χώρο, ιδίως αν ανήκεις σε ευαίσθητη ομάδα.' } : { name: 'Εξαιρετικά κακή', color: '#713c82', message: 'Περιόρισε τις υπαίθριες δραστηριότητες και ακολούθησε τις τοπικές οδηγίες.' };
+export type Plane = { icao24: string; callsign: string; originCountry: string; latitude: number; longitude: number; lastContact: number; altitude: number | null; onGround: boolean; baroAltitude: number | null; velocity: number | null; heading: number | null; verticalRate: number | null; squawk: string | null; positionSource: number | null };
+const cities = [
+  { name: 'Αθήνα', lat: 37.9838, lon: 23.7275 }, { name: 'Θεσσαλονίκη', lat: 40.6401, lon: 22.9444 },
+  { name: 'Πάτρα', lat: 38.2466, lon: 21.7351 }, { name: 'Ηράκλειο', lat: 35.3387, lon: 25.1442 },
+  { name: 'Λάρισα', lat: 39.6369, lon: 22.4176 }, { name: 'Ιωάννινα', lat: 39.665, lon: 20.8537 },
+  { name: 'Ρόδος', lat: 36.4356, lon: 28.2278 },
+  { name: 'Αλεξανδρούπολη', lat: 40.8499, lon: 25.8764 }, { name: 'Καβάλα', lat: 40.9396, lon: 24.4069 },
+  { name: 'Δράμα', lat: 41.1528, lon: 24.1473 }, { name: 'Σέρρες', lat: 41.085, lon: 23.5476 },
+  { name: 'Κοζάνη', lat: 40.2993, lon: 21.7898 }, { name: 'Φλώρινα', lat: 40.782, lon: 21.4098 },
+  { name: 'Καστοριά', lat: 40.5217, lon: 21.2634 }, { name: 'Τρίκαλα', lat: 39.5549, lon: 21.7684 },
+  { name: 'Καρδίτσα', lat: 39.3648, lon: 21.9219 }, { name: 'Βόλος', lat: 39.3692, lon: 22.9477 },
+  { name: 'Λαμία', lat: 38.8995, lon: 22.4335 }, { name: 'Χαλκίδα', lat: 38.4635, lon: 23.6028 },
+  { name: 'Αγρίνιο', lat: 38.6214, lon: 21.4078 }, { name: 'Άρτα', lat: 39.1601, lon: 20.9856 },
+  { name: 'Πρέβεζα', lat: 38.9562, lon: 20.7505 }, { name: 'Κέρκυρα', lat: 39.6244, lon: 19.9202 },
+  { name: 'Ζάκυνθος', lat: 37.7802, lon: 20.8956 }, { name: 'Πύργος', lat: 37.6751, lon: 21.441 },
+  { name: 'Καλαμάτα', lat: 37.0391, lon: 22.1126 }, { name: 'Σπάρτη', lat: 37.0745, lon: 22.4301 },
+  { name: 'Τρίπολη', lat: 37.5096, lon: 22.3788 }, { name: 'Ναύπλιο', lat: 37.5686, lon: 22.8069 },
+  { name: 'Χανιά', lat: 35.5112, lon: 24.0292 }, { name: 'Ρέθυμνο', lat: 35.3655, lon: 24.4823 },
+  { name: 'Άγιος Νικόλαος', lat: 35.1911, lon: 25.7152 }, { name: 'Μυτιλήνη', lat: 39.1077, lon: 26.5553 },
+  { name: 'Χίος', lat: 38.3687, lon: 26.1372 }, { name: 'Σάμος', lat: 37.7543, lon: 26.977 },
+  { name: 'Κως', lat: 36.8929, lon: 27.2877 }, { name: 'Σύρος', lat: 37.4415, lon: 24.9192 },
+];
+const fmt = (value: number) => value.toLocaleString('el-GR');
+const checkedFetch = async (url: string, signal: AbortSignal) => {
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+  return response.json();
+};
+const planeIcon = (heading: number | null, greek: boolean) => L.divIcon({ className: 'aircraft-icon', iconSize: [30, 30], iconAnchor: [15, 15], html: '<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" style="transform:rotate(' + (Number.isFinite(heading) ? heading : 0) + 'deg)"><path d="M15 2 C16.4 2 17 4 17 6 L17 12 L27 17 L27 20 L17 17 L17 24 L20 26 L20 28 L15 26 L10 28 L10 26 L13 24 L13 17 L3 20 L3 17 L13 12 L13 6 C13 4 13.6 2 15 2Z" fill="' + (greek ? '#2678c9' : '#e78136') + '" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>' });
+const circle = (point: [number, number], color: string, radius = 6) =>
+  L.circleMarker(point, { radius, color: '#ffffff', weight: 1.5, fillColor: color, fillOpacity: .92 });
+
+export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onStatus }: Props) {
+  useEffect(() => {
+    if (!active.population || !mapRef.current) return;
+    const map = mapRef.current; const controller = new AbortController(); let layer: L.GeoJSON | undefined;
+    onStatus('population', 'Φόρτωση απογραφής 2021…');
+    checkedFetch('/data/greek-municipalities-2021.geojson', controller.signal).then(data => {
+      if (controller.signal.aborted) return;
+      layer = L.geoJSON(data, {
+        style: feature => {
+          const pop = Number(feature?.properties?.pop21 || 0);
+          const fillColor = pop < 10000 ? '#d9f2de' : pop < 30000 ? '#7fcea7' : pop < 100000 ? '#2c997f' : '#156258';
+          return { renderer: L.canvas(), color: '#42786e', weight: .85, fillColor, fillOpacity: .66 };
+        },
+        onEachFeature: (feature, shape) => {
+          const name = String(feature.properties?.NAME_GR ?? 'Δήμος');
+          const pop = Number(feature.properties?.pop21 ?? 0);
+          shape.bindTooltip(name + ' · ' + fmt(pop) + ' κάτοικοι', { sticky: true });
+          shape.on('click', event => { L.DomEvent.stopPropagation(event); onArea(name, 'Μόνιμος πληθυσμός απογραφής 2021: ' + fmt(pop) + ' κάτοικοι · ΕΛΣΤΑΤ'); });
+        },
+      }).addTo(map);
+      onStatus('population', '333 δήμοι · απογραφή 2021');
+    }).catch(error => { if (!controller.signal.aborted) onStatus('population', 'Αδυναμία φόρτωσης δεδομένων'); console.error(error); });
+    return () => { controller.abort(); if (layer) map.removeLayer(layer); };
+  }, [mapRef, active.population, onArea, onStatus]);
+
+  useEffect(() => {
+    if (!active.airports || !mapRef.current) return;
+    const map = mapRef.current; const controller = new AbortController(); const layer = L.layerGroup().addTo(map);
+    onStatus('airports', 'Φόρτωση αεροδρομίων…');
+    checkedFetch('/data/greek-airports.json', controller.signal).then((data: { airports: Airport[] }) => {
+      if (controller.signal.aborted) return;
+      for (const airport of data.airports) {
+        circle([airport.lat, airport.lon], '#8054a6', 6).bindTooltip(airport.name)
+          .on('click', event => { L.DomEvent.stopPropagation(event); onArea(airport.name, 'Αεροδρόμιο · ' + (airport.iata || airport.ident) + ' · OurAirports'); }).addTo(layer);
+      }
+      onStatus('airports', fmt(data.airports.length) + ' αεροδρόμια με προγραμματισμένες πτήσεις · OurAirports');
+    }).catch(error => { if (!controller.signal.aborted) onStatus('airports', 'Αδυναμία φόρτωσης αεροδρομίων'); console.error(error); });
+    return () => { controller.abort(); map.removeLayer(layer); };
+  }, [mapRef, active.airports, onArea, onStatus]);
+
+  useEffect(() => {
+    if (!active.aircraft || !mapRef.current) return;
+    const map = mapRef.current; const controller = new AbortController(); const layer = L.layerGroup().addTo(map);
+    onStatus('aircraft', 'Φόρτωση στιγμιότυπου πτήσεων…');
+    checkedFetch('/data/aircraft-live.json?refresh=' + Math.floor(Date.now() / 1800000), controller.signal)
+      .then((data: { fetchedAt: number; time: number; states: Plane[] }) => {
+        if (controller.signal.aborted) return;
+        const age = Math.max(0, Math.round((Date.now() / 1000 - data.fetchedAt) / 60));
+        for (const plane of data.states) {
+          if (!Number.isFinite(plane.latitude) || !Number.isFinite(plane.longitude)) continue;
+          L.marker([plane.latitude, plane.longitude], { icon: planeIcon(plane.heading, plane.originCountry === 'Greece'), zIndexOffset: plane.originCountry === 'Greece' ? 10000 : 0 })
+            .bindTooltip((plane.callsign || plane.icao24) + ' · Πάτησε για πλήρη καρτέλα')
+            .on('click', event => { L.DomEvent.stopPropagation(event); onPlane({ ...plane, snapshotTime: data.time }); }).addTo(layer);
+        }
+        onStatus('aircraft', fmt(data.states.length) + ' αεροσκάφη · στιγμιότυπο πριν ' + age + ' λεπτά' + (age > 60 ? ' (παλιό)' : ''));
+      }).catch(error => { if (!controller.signal.aborted) onStatus('aircraft', 'Δεν υπάρχει διαθέσιμο στιγμιότυπο'); console.error(error); });
+    return () => { controller.abort(); map.removeLayer(layer); };
+  }, [mapRef, active.aircraft, onPlane, onStatus]);
+
+  useEffect(() => {
+    if (!active.marine || !mapRef.current) return;
+    const map = mapRef.current; const controller = new AbortController(); let layer: L.GeoJSON | undefined;
+    onStatus('marine', 'Φόρτωση θαλάσσιων περιοχών…');
+    checkedFetch('/data/greek-sea-areas.geojson', controller.signal).then(data => {
+      if (controller.signal.aborted) return;
+      layer = L.geoJSON(data, { style: { renderer: L.canvas(), color: '#2784b9', weight: 1.3, fillColor: '#6fb7d8', fillOpacity: .13 }, onEachFeature: (feature, shape) => shape.bindTooltip(String(feature.properties?.name ?? 'Θαλάσσια περιοχή')) }).addTo(map);
+      onStatus('marine', 'Ιόνιο και Αιγαίο · IHO / Marine Regions · γεωγραφικές περιοχές');
+    }).catch(error => { if (!controller.signal.aborted) onStatus('marine', 'Αδυναμία φόρτωσης γεωμετρίας'); console.error(error); });
+    return () => { controller.abort(); if (layer) map.removeLayer(layer); };
+  }, [mapRef, active.marine, onStatus]);
+
+  useEffect(() => {
+    if (!active.weather || !mapRef.current) return;
+    const map = mapRef.current; const controller = new AbortController(); const layer = L.layerGroup().addTo(map);
+    onStatus('weather', 'Φόρτωση προγνωστικού μοντέλου…');
+    const coords = 'latitude=' + cities.map(c => c.lat).join(',') + '&longitude=' + cities.map(c => c.lon).join(',');
+    checkedFetch('https://api.open-meteo.com/v1/forecast?' + coords + '&current=temperature_2m,precipitation,wind_speed_10m&timezone=Europe%2FAthens', controller.signal).then((data: Array<{ current: { time: string; temperature_2m: number; precipitation: number; wind_speed_10m: number } }>) => {
+      if (controller.signal.aborted) return;
+      for (const [index, city] of cities.entries()) {
+        const value = data[index]?.current;
+        if (!value || !Number.isFinite(value.temperature_2m)) continue;
+        circle([city.lat, city.lon], '#daa53e', 8).bindTooltip(city.name + ' · ' + value.temperature_2m + '°C')
+          .on('click', event => { L.DomEvent.stopPropagation(event); onArea(city.name, 'Μοντέλο Open-Meteo · ' + value.time.replace('T', ' ') + ' · ' + value.temperature_2m + '°C · βροχή ' + value.precipitation + ' mm · άνεμος ' + value.wind_speed_10m + ' km/h'); }).addTo(layer);
+      }
+      onStatus('weather', 'Μοντέλο καιρού · ' + layer.getLayers().length + ' ενδεικτικές πόλεις');
+    }).catch(error => { if (!controller.signal.aborted) onStatus('weather', 'Η υπηρεσία καιρού δεν αποκρίνεται'); console.error(error); });
+    return () => { controller.abort(); map.removeLayer(layer); };
+  }, [mapRef, active.weather, onArea, onStatus]);
+
+  useEffect(() => {
+    if (!active.airQuality || !mapRef.current) return;
+    const map = mapRef.current; const controller = new AbortController(); const layer = L.layerGroup().addTo(map);
+    onStatus('airQuality', 'Φόρτωση προγνωστικής ποιότητας αέρα…');
+    let pointRequest: AbortController | null = null;
+    let removeZoomListener: (() => void) | undefined;
+    const handleMapClick = (event: L.LeafletMouseEvent) => {
+      pointRequest?.abort();
+      pointRequest = new AbortController();
+      const { lat, lng } = event.latlng;
+      checkedFetch('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lat.toFixed(5) + '&longitude=' + lng.toFixed(5) + '&current=pm2_5,pm10,european_aqi&timezone=Europe%2FAthens', pointRequest.signal)
+        .then((data: { current?: { time: string; pm2_5: number; pm10: number; european_aqi: number } }) => {
+          const value = data.current;
+          if (!value || !Number.isFinite(value.european_aqi)) return;
+          onAirQuality({ city: 'Επιλεγμένο σημείο', time: value.time, aqi: value.european_aqi, pm25: Number.isFinite(value.pm2_5) ? value.pm2_5 : null, pm10: Number.isFinite(value.pm10) ? value.pm10 : null });
+        }).catch(error => { if (error.name !== 'AbortError') console.error('Ποιότητα αέρα στο επιλεγμένο σημείο:', error); });
+    };
+    map.on('click', handleMapClick);
+    const coords = 'latitude=' + cities.map(c => c.lat).join(',') + '&longitude=' + cities.map(c => c.lon).join(',');
+    checkedFetch('https://air-quality-api.open-meteo.com/v1/air-quality?' + coords + '&current=pm2_5,pm10,european_aqi&timezone=Europe%2FAthens', controller.signal).then((data: Array<{ current: { time: string; pm2_5: number; pm10: number; european_aqi: number } }>) => {
+      if (controller.signal.aborted) return;
+      const markers: Array<{ marker: L.CircleMarker; prominent: boolean }> = [];
+      for (const [index, city] of cities.entries()) {
+        const value = data[index]?.current;
+        if (!value || !Number.isFinite(value.european_aqi)) continue;
+        const band = airQualityBand(value.european_aqi);
+        const reading: AirReading = { city: city.name, time: value.time, aqi: value.european_aqi, pm25: Number.isFinite(value.pm2_5) ? value.pm2_5 : null, pm10: Number.isFinite(value.pm10) ? value.pm10 : null };
+        const marker = circle([city.lat, city.lon], band.color, index < 7 ? 10 : 7).bindTooltip(city.name + ' · Αέρας: ' + band.name + ' (' + value.european_aqi + ')')
+          .on('click', event => { L.DomEvent.stopPropagation(event); onAirQuality(reading); });
+        markers.push({ marker, prominent: index < 7 });
+      }
+      const updateVisible = () => {
+        for (const item of markers) {
+          if (item.prominent || map.getZoom() >= 8) layer.addLayer(item.marker);
+          else layer.removeLayer(item.marker);
+        }
+      };
+      updateVisible();
+      map.on('zoomend', updateVisible);
+      removeZoomListener = () => map.off('zoomend', updateVisible);
+      onStatus('airQuality', 'Πρόγνωση σε ' + markers.length + ' πόλεις · μεγέθυνε ή πάτησε τον χάρτη');
+    }).catch(error => { if (!controller.signal.aborted) onStatus('airQuality', 'Η υπηρεσία αέρα δεν αποκρίνεται'); console.error(error); });
+    return () => { controller.abort(); pointRequest?.abort(); map.off('click', handleMapClick); removeZoomListener?.(); map.removeLayer(layer); };
+  }, [mapRef, active.airQuality, onAirQuality, onStatus]);
+  return null;
+}
