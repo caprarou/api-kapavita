@@ -4,7 +4,7 @@ The first public preview of a map-centered registry for data about Greece.
 
 ## Current release
 
-- Interactive MapLibre map of Greece using OpenFreeMap's Positron style.
+- Interactive Leaflet map of Greece using OpenStreetMap raster tiles. Raster tiles work without WebGL2.
 - Local navigation search for seven named places; this is not a complete geocoder.
 - A candidate source registry in `catalog/sources.json`, displayed with explicit unknown fields.
 - Layer groups for land, sea, air and environment. Only the basemap is active.
@@ -23,7 +23,7 @@ npm run build
 ```
 
 Node.js 22 or newer is recommended. Production serves `app/dist` via Caddy.
-The map style uses OpenFreeMap and OpenStreetMap data; their attribution remains visible on the map.
+The map uses OpenStreetMap tiles with visible attribution. Public tile usage should be reviewed before significant traffic.
 
 ## Structure
 
