@@ -18,13 +18,13 @@ const places: Place[] = [
   { name: 'Ιωάννινα', detail: 'Ήπειρος', center: [20.8537, 39.665], zoom: 10.5 },
 ];
 const layerGroups = [
-  { title: 'Ξηρά', icon: Layers3, entries: ['Περιφέρειες (2016)', 'Πληθυσμός', 'Επιχειρήσεις', 'Ακίνητα'] },
+  { title: 'Ξηρά', icon: Layers3, entries: ['Περιφέρειες (2016)', 'Δήμοι (2021)', 'Δημοτικές κοινότητες (2021)', 'Πληθυσμός', 'Επιχειρήσεις', 'Ακίνητα'] },
   { title: 'Θάλασσα', icon: Waves, entries: ['Πλοία / AIS', 'Θαλάσσιες ζώνες'] },
   { title: 'Αέρας', icon: Wind, entries: ['Αεροσκάφη', 'Αεροδρόμια'] },
   { title: 'Περιβάλλον', icon: Globe2, entries: ['Καιρός', 'Ποιότητα αέρα'] },
 ];
 
-function MapView({ mapRef, onSelect, showRegions, onRegionSelect }: { mapRef: React.MutableRefObject<LeafletMap | null>; onSelect: (point: [number, number]) => void; showRegions: boolean; onRegionSelect: (name: string) => void }) {
+function MapView({ mapRef, onSelect, showRegions, showMunicipalities, showCommunities, onRegionSelect, onAreaSelect }: { mapRef: React.MutableRefObject<LeafletMap | null>; onSelect: (point: [number, number]) => void; showRegions: boolean; showMunicipalities: boolean; showCommunities: boolean; onRegionSelect: (name: string) => void; onAreaSelect: (name: string, detail: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!container.current) return;
@@ -58,6 +58,83 @@ function MapView({ mapRef, onSelect, showRegions, onRegionSelect }: { mapRef: Re
       .catch(error => { if (error.name !== 'AbortError') console.error('Αποτυχία φόρτωσης ορίων:', error); });
     return () => { controller.abort(); if (layer) map.removeLayer(layer); };
   }, [mapRef, showRegions, onRegionSelect]);
+  useEffect(() => {
+    if (!mapRef.current || (!showMunicipalities && !showCommunities)) return;
+    const map = mapRef.current;
+    const controller = new AbortController();
+    const canvas = L.canvas({ padding: .3 });
+    let municipalityLayer: L.GeoJSON | undefined;
+    let communitiesLayer: L.GeoJSON | undefined;
+    let communityData: GeoJSON.FeatureCollection | undefined;
+    const drawCommunities = () => {
+      if (communitiesLayer) { map.removeLayer(communitiesLayer); communitiesLayer = undefined; }
+      if (!showCommunities || !communityData || map.getZoom() < 9) return;
+      const bounds = map.getBounds().pad(.2);
+      communitiesLayer = L.geoJSON(communityData, {
+        filter: feature => {
+          const box = feature.bbox;
+          return !box || bounds.intersects(L.latLngBounds([box[1], box[0]], [box[3], box[2]]));
+        },
+        style: { renderer: canvas, color: '#df8e3c', weight: 1.2, opacity: .9, fillColor: '#f4ad63', fillOpacity: .07 },
+        onEachFeature: (feature, shape) => {
+          const props = feature.properties ?? {};
+          const name = String(props.LAU_LABEL3 ?? 'Δημοτική κοινότητα');
+          shape.bindTooltip(name, { sticky: true });
+          shape.on('click', event => {
+            L.DomEvent.stopPropagation(event);
+            onAreaSelect(name, `Δημοτική κοινότητα · απογραφή 2021 · μόνιμος πληθυσμός ${Number(props.POPULUS ?? 0).toLocaleString('el-GR')}`);
+          });
+        },
+      }).addTo(map);
+    };
+    if (showMunicipalities) {
+      fetch('/data/greek-municipalities-2021.geojson', { signal: controller.signal })
+        .then(response => { if (!response.ok) throw new Error('Οι δήμοι δεν φορτώθηκαν'); return response.json(); })
+        .then(data => {
+          if (controller.signal.aborted) return;
+          municipalityLayer = L.geoJSON(data, {
+            style: { renderer: canvas, color: '#175d9b', weight: 1.3, opacity: .85, fillColor: '#5badd6', fillOpacity: .04 },
+            onEachFeature: (feature, shape) => {
+              const props = feature.properties ?? {};
+              const name = String(props.NAME_GR ?? 'Δήμος');
+              shape.bindTooltip(name, { sticky: true });
+              shape.on('click', event => {
+                L.DomEvent.stopPropagation(event);
+                onAreaSelect(name, `Δήμος · απογραφή 2021 · μόνιμος πληθυσμός ${Number(props.pop21 ?? 0).toLocaleString('el-GR')}`);
+              });
+            },
+          }).addTo(map);
+          communitiesLayer?.bringToFront();
+        })
+        .catch(error => { if (error.name !== 'AbortError') console.error('Αποτυχία φόρτωσης δήμων:', error); });
+    }
+    let loadingCommunities = false;
+    const loadCommunities = () => {
+      if (!showCommunities || map.getZoom() < 9 || communityData || loadingCommunities) return;
+      loadingCommunities = true;
+      fetch('/data/greek-communities-2021.geojson', { signal: controller.signal })
+        .then(response => { if (!response.ok) throw new Error('Οι κοινότητες δεν φορτώθηκαν'); return response.json(); })
+        .then(data => {
+          if (controller.signal.aborted) return;
+          communityData = data;
+          drawCommunities();
+          map.on('moveend', drawCommunities);
+        })
+        .catch(error => { if (error.name !== 'AbortError') console.error('Αποτυχία φόρτωσης κοινοτήτων:', error); })
+        .finally(() => { loadingCommunities = false; });
+    };
+    if (showCommunities) {
+      map.on('zoomend', loadCommunities);
+      loadCommunities();
+    }
+    return () => {
+      controller.abort();
+      map.off('moveend', drawCommunities);
+      map.off('zoomend', loadCommunities);
+      if (municipalityLayer) map.removeLayer(municipalityLayer);
+      if (communitiesLayer) map.removeLayer(communitiesLayer);
+    };
+  }, [mapRef, showMunicipalities, showCommunities, onAreaSelect]);
   return <div ref={container} className="map-canvas" aria-label="Διαδραστικός χάρτης της Ελλάδας" />;
 }
 
@@ -79,6 +156,8 @@ function App() {
   const [selectedSource, setSelectedSource] = useState<SourceRecord | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [showRegions, setShowRegions] = useState(false);
+  const [showMunicipalities, setShowMunicipalities] = useState(false);
+  const [showCommunities, setShowCommunities] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ Ξηρά: true, Θάλασσα: true, Αέρας: true, Περιβάλλον: true });
   const filteredSources = useMemo(() => sources.filter(s => `${s.name} ${s.category} ${s.authority}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
   const filteredPlaces = useMemo(() => places.filter(p => `${p.name} ${p.detail}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
@@ -86,6 +165,7 @@ function App() {
   const showSource = (source: SourceRecord) => { setSelectedSource(source); setPanel('catalog'); setSearchOpen(false); setMobileMenu(false); };
   const selectPoint = useCallback((point: [number, number]) => { setSelectedPoint(point); setSelectedPlace(null); setSelectedSource(null); }, [setSelectedPoint, setSelectedPlace, setSelectedSource]);
   const selectRegion = useCallback((name: string) => { setSelectedPlace({ name, detail: 'Περιφέρεια · όρια 2016', center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedPlace, setSelectedPoint]);
+  const selectArea = useCallback((name: string, detail: string) => { setSelectedPlace({ name, detail, center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, []);
   const switchPanel = (next: Panel) => { setPanel(next); setSelectedSource(null); setMobileMenu(false); setQuery(''); setSearchOpen(false); requestAnimationFrame(() => mapRef.current?.invalidateSize()); };
   return <div className="app-shell">
     <header className="topbar">
@@ -103,7 +183,7 @@ function App() {
           </div>
           <div className="sidebar-section-title"><span>ΕΠΙΠΕΔΑ ΧΑΡΤΗ</span><SlidersHorizontal size={15}/></div>
           <div className="base-layer"><span className="layer-symbol"><Compass size={19}/></span><span><strong>Βασικός χάρτης</strong><small>OpenStreetMap</small></span><span className="on-indicator"><Check size={14}/></span></div>
-          <div className="layer-list">{layerGroups.map(group => <div className="layer-group" key={group.title}><button className="group-heading" onClick={() => setExpanded({ ...expanded, [group.title]: !expanded[group.title] })} aria-expanded={expanded[group.title]}><group.icon size={16}/><span>{group.title}</span><ChevronDown size={15} className={expanded[group.title] ? '' : 'collapsed'} /></button>{expanded[group.title] && <div className="group-items">{group.entries.map(entry => entry === 'Περιφέρειες (2016)' ? <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={showRegions} onChange={event => setShowRegions(event.target.checked)} /><span>{entry}</span><small>gbOpen</small></label> : <div className="layer-item" key={entry}><span className="empty-check"/><span>{entry}</span><small>Σύντομα</small></div>)}</div>}</div>)}</div>
+          <div className="layer-list">{layerGroups.map(group => <div className="layer-group" key={group.title}><button className="group-heading" onClick={() => setExpanded({ ...expanded, [group.title]: !expanded[group.title] })} aria-expanded={expanded[group.title]}><group.icon size={16}/><span>{group.title}</span><ChevronDown size={15} className={expanded[group.title] ? '' : 'collapsed'} /></button>{expanded[group.title] && <div className="group-items">{group.entries.map(entry => entry === 'Περιφέρειες (2016)' ? <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={showRegions} onChange={event => setShowRegions(event.target.checked)} /><span>{entry}</span><small>gbOpen</small></label> : entry === 'Δήμοι (2021)' ? <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={showMunicipalities} onChange={event => setShowMunicipalities(event.target.checked)} /><span>{entry}</span><small>ΕΛΣΤΑΤ</small></label> : entry === 'Δημοτικές κοινότητες (2021)' ? <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={showCommunities} onChange={event => setShowCommunities(event.target.checked)} /><span>{entry}</span><small>ΕΛΣΤΑΤ</small></label> : <div className="layer-item" key={entry}><span className="empty-check"/><span>{entry}</span><small>Σύντομα</small></div>)}</div>}</div>)}</div>
           <div className="sidebar-footer"><Info size={17}/><span>Τα ανενεργά επίπεδα δεν προβάλλουν ακόμη δεδομένα. <button onClick={() => switchPanel('catalog')}>Δες τις πηγές <ArrowRight size={13}/></button></span></div>
         </> : <>
           <div className="sidebar-heading catalog-head"><span className="eyebrow">ΜΗΤΡΩΟ ΠΗΓΩΝ</span><h1>Γνώρισε τα<br/><em>δεδομένα.</em></h1><p>Ένας διαφανής κατάλογος πηγών για την Ελλάδα. Κάθε εγγραφή ξεκινά ως υποψήφια και επαληθεύεται ξεχωριστά.</p></div>
@@ -113,13 +193,14 @@ function App() {
       </aside>
       <section className={`main-stage ${panel === 'catalog' ? 'catalog-stage' : ''}`}>
         {panel === 'map' ? <>
-          <MapView mapRef={mapRef} onSelect={selectPoint} showRegions={showRegions} onRegionSelect={selectRegion}/>
+          <MapView mapRef={mapRef} onSelect={selectPoint} showRegions={showRegions} showMunicipalities={showMunicipalities} showCommunities={showCommunities} onRegionSelect={selectRegion} onAreaSelect={selectArea}/>
           <div className="map-top-left"><span className="map-label"><span className="pulse-dot" /> ΧΑΡΤΗΣ ΕΛΛΑΔΑΣ</span></div>
+          {(showMunicipalities || showCommunities) && <div className="elstat-attribution">Απογραφικά όρια 2021 · <a href="https://lms.statistics.gr/el/geo-serv" target="_blank" rel="noopener noreferrer">ΕΛΣΤΑΤ</a> · όχι αποδεικτικά διοικητικών ορίων{showCommunities && <span> · Κοινότητες από ζουμ 9</span>}</div>}
           {showRegions && <div className="region-attribution">Όρια 2016 · <a href="https://www.geoboundaries.org/" target="_blank" rel="noopener noreferrer">geoBoundaries</a> · CC BY 4.0</div>}
           <div className="map-controls"><button aria-label="Μεγέθυνση" onClick={() => mapRef.current?.zoomIn()}><Plus size={19}/></button><button aria-label="Σμίκρυνση" onClick={() => mapRef.current?.zoomOut()}><Minus size={19}/></button><div className="control-divider"/><button aria-label="Επιστροφή στην Ελλάδα" onClick={() => goTo(places[0])}><Compass size={19}/></button></div>
-          <div className="map-info-card"><span className="info-card-icon"><MapPin size={20}/></span><div><span className="eyebrow">ΤΟΠΟΘΕΣΙΑ</span><h2>{selectedPlace?.name ?? 'Επιλεγμένο σημείο'}</h2><p>{selectedPlace?.detail ?? (selectedPoint ? `${selectedPoint[1].toFixed(4)}° Β, ${selectedPoint[0].toFixed(4)}° Α` : 'Ελλάδα')}</p></div><div className="info-separator"/><div className="info-availability"><span className="small-status-dot"/><span>Θεματικά δεδομένα<br/><strong>{showRegions ? '1 ιστορικό επίπεδο' : 'Δεν έχουν συνδεθεί'}</strong></span></div></div>
-          <div className="map-bottom-note">Βάση χάρτη: OpenStreetMap · Περιφέρειες 2016: geoBoundaries · Λοιπά επίπεδα υπό ανάπτυξη</div>
-        </> : <div className="catalog-content"><div className="catalog-title-row"><div><span className="eyebrow">GREECE DATA REGISTRY / 001</span><h2>Κατάλογος πηγών</h2><p>Ένα ιστορικό επίπεδο έχει συνδεθεί. Οι υπόλοιπες πηγές παραμένουν υπό έλεγχο· δεν υπάρχουν ζωντανές ροές.</p></div><span className="count-pill">{sources.length} πηγές</span></div><div className="catalog-search"><Search size={19}/><input aria-label="Αναζήτηση πηγής" placeholder="Αναζήτησε πηγή ή κατηγορία..." value={query} onChange={e => setQuery(e.target.value)}/></div><div className="catalog-grid">{filteredSources.map(s => <SourceCard key={s.id} source={s} onOpen={showSource}/>)}</div>{!filteredSources.length && <div className="catalog-empty">Δεν βρέθηκε πηγή με αυτόν τον όρο.</div>}<div className="catalog-bottom"><span>Κάθε στοιχείο συμπληρώνεται μόνο όταν επιβεβαιωθεί.</span><span>Πρώτη καταγραφή · {sources.length} εγγραφές</span></div></div>}
+          <div className="map-info-card"><span className="info-card-icon"><MapPin size={20}/></span><div><span className="eyebrow">ΤΟΠΟΘΕΣΙΑ</span><h2>{selectedPlace?.name ?? 'Επιλεγμένο σημείο'}</h2><p>{selectedPlace?.detail ?? (selectedPoint ? `${selectedPoint[1].toFixed(4)}° Β, ${selectedPoint[0].toFixed(4)}° Α` : 'Ελλάδα')}</p></div><div className="info-separator"/><div className="info-availability"><span className="small-status-dot"/><span>Θεματικά δεδομένα<br/><strong>{showMunicipalities || showCommunities ? 'Απογραφή 2021' : showRegions ? '1 ιστορικό επίπεδο' : 'Δεν έχουν συνδεθεί'}</strong></span></div></div>
+          <div className="map-bottom-note">Βάση: OpenStreetMap · Δήμοι/κοινότητες 2021: ΕΛΣΤΑΤ · Περιφέρειες 2016: geoBoundaries</div>
+        </> : <div className="catalog-content"><div className="catalog-title-row"><div><span className="eyebrow">GREECE DATA REGISTRY / 001</span><h2>Κατάλογος πηγών</h2><p>Συνδέθηκαν τα απογραφικά όρια 2021 για δήμους και κοινότητες και ιστορικά όρια περιφερειών 2016. Δεν υπάρχουν ζωντανές ροές.</p></div><span className="count-pill">{sources.length} πηγές</span></div><div className="catalog-search"><Search size={19}/><input aria-label="Αναζήτηση πηγής" placeholder="Αναζήτησε πηγή ή κατηγορία..." value={query} onChange={e => setQuery(e.target.value)}/></div><div className="catalog-grid">{filteredSources.map(s => <SourceCard key={s.id} source={s} onOpen={showSource}/>)}</div>{!filteredSources.length && <div className="catalog-empty">Δεν βρέθηκε πηγή με αυτόν τον όρο.</div>}<div className="catalog-bottom"><span>Κάθε στοιχείο συμπληρώνεται μόνο όταν επιβεβαιωθεί.</span><span>Πρώτη καταγραφή · {sources.length} εγγραφές</span></div></div>}
       </section>
       {selectedSource && <div className="detail-overlay" onClick={() => setSelectedSource(null)}><aside className="detail-panel" onClick={e => e.stopPropagation()} aria-label="Στοιχεία πηγής"><div className="detail-top"><span className="eyebrow">ΠΡΟΦΙΛ ΠΗΓΗΣ</span><button aria-label="Κλείσιμο" onClick={() => setSelectedSource(null)}><X size={19}/></button></div><span className="detail-icon"><Database size={24}/></span><h2>{selectedSource.name}</h2><p className="detail-authority">{selectedSource.authority}</p><span className={selectedSource.status === 'Ενεργό επίπεδο' ? 'active-badge' : 'pending-badge'}>● {selectedSource.status}</span><p className="detail-description">{selectedSource.description}</p><div className="detail-rows"><div><span>Κατηγορία</span><strong>{selectedSource.category}</strong></div><div><span>Κάλυψη</span><strong>{selectedSource.coverage}</strong></div><div><span>Πρόσβαση</span><strong>{selectedSource.access}</strong></div><div><span>Κόστος / όροι</span><strong>{selectedSource.pricing}</strong></div><div><span>Άδεια χρήσης</span><strong>{selectedSource.license ?? 'Προς επαλήθευση'}</strong></div><div><span>Εμπορική χρήση</span><strong>{selectedSource.commercialUse ?? 'Προς επαλήθευση'}</strong></div><div><span>Τελευταίος έλεγχος</span><strong>{selectedSource.lastVerified ?? 'Δεν έχει ελεγχθεί'}</strong></div></div><a className="visit-link" href={selectedSource.homepage} target="_blank" rel="noopener noreferrer">Ιστότοπος πηγής <ExternalLink size={16}/></a>{selectedSource.documentation && <a className="documentation-link" href={selectedSource.documentation} target="_blank" rel="noopener noreferrer">Επίσημη τεκμηρίωση <ExternalLink size={15}/></a>}<p className="detail-disclaimer">Η καταχώριση δεν βεβαιώνει διαθεσιμότητα API, άδεια χρήσης ή πρόσφατη ενημέρωση.</p></aside></div>}
     </main>
