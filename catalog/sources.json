@@ -106,5 +106,23 @@
     "geographicResolution": null,
     "lastVerified": null,
     "status": "Υποψήφια πηγή"
+  },
+  {
+    "id": "geoboundaries-grc-adm2-2016",
+    "name": "Περιφέρειες Ελλάδας · geoBoundaries",
+    "authority": "William & Mary geoLab / geoBoundaries",
+    "category": "Γεωχωρικά",
+    "description": "Ιστορικά όρια 13 περιφερειών και Αγίου Όρους, έτος αναφοράς 2016. Ενεργό επίπεδο χάρτη· όχι τεκμήριο των σημερινών διοικητικών ορίων.",
+    "homepage": "https://www.geoboundaries.org/",
+    "documentation": "https://www.geoboundaries.org/api/current/gbOpen/GRC/ADM2/",
+    "coverage": "Ελλάδα",
+    "access": "Ανοιχτή πύλη",
+    "pricing": "Δωρεάν",
+    "license": "CC BY 4.0 (gbOpen)",
+    "commercialUse": "Επιτρέπεται με αναφορά πηγής σύμφωνα με την άδεια",
+    "updateFrequency": "Στιγμιότυπο 2016",
+    "geographicResolution": "13 περιφέρειες και Άγιο Όρος",
+    "lastVerified": "2026-09-28",
+    "status": "Ενεργό επίπεδο"
   }
 ]

@@ -14,7 +14,7 @@ export type SourceRecord = {
   updateFrequency: string | null;
   geographicResolution: string | null;
   lastVerified: string | null;
-  status: 'Υποψήφια πηγή';
+  status: 'Υποψήφια πηγή' | 'Ενεργό επίπεδο';
 };
 
 // Candidate records only. Verification of endpoints, licenses and availability is pending.
