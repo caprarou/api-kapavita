@@ -140,7 +140,6 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onSta
     const map = mapRef.current; const controller = new AbortController(); const layer = L.layerGroup().addTo(map);
     onStatus('airQuality', 'Φόρτωση προγνωστικής ποιότητας αέρα…');
     let pointRequest: AbortController | null = null;
-    let removeZoomListener: (() => void) | undefined;
     const handleMapClick = (event: L.LeafletMouseEvent) => {
       pointRequest?.abort();
       pointRequest = new AbortController();
@@ -156,28 +155,20 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onSta
     const coords = 'latitude=' + cities.map(c => c.lat).join(',') + '&longitude=' + cities.map(c => c.lon).join(',');
     checkedFetch('https://air-quality-api.open-meteo.com/v1/air-quality?' + coords + '&current=pm2_5,pm10,european_aqi&timezone=Europe%2FAthens', controller.signal).then((data: Array<{ current: { time: string; pm2_5: number; pm10: number; european_aqi: number } }>) => {
       if (controller.signal.aborted) return;
-      const markers: Array<{ marker: L.CircleMarker; prominent: boolean }> = [];
+      let visibleCities = 0;
       for (const [index, city] of cities.entries()) {
         const value = data[index]?.current;
         if (!value || !Number.isFinite(value.european_aqi)) continue;
         const band = airQualityBand(value.european_aqi);
         const reading: AirReading = { city: city.name, time: value.time, aqi: value.european_aqi, pm25: Number.isFinite(value.pm2_5) ? value.pm2_5 : null, pm10: Number.isFinite(value.pm10) ? value.pm10 : null };
-        const marker = circle([city.lat, city.lon], band.color, index < 7 ? 10 : 7).bindTooltip(city.name + ' · Αέρας: ' + band.name + ' (' + value.european_aqi + ')')
+        const marker = circle([city.lat, city.lon], band.color, index < 7 ? 9 : 6).bindTooltip(city.name + ' · Αέρας: ' + band.name + ' (' + value.european_aqi + ')')
           .on('click', event => { L.DomEvent.stopPropagation(event); onAirQuality(reading); });
-        markers.push({ marker, prominent: index < 7 });
+        marker.addTo(layer);
+        visibleCities++;
       }
-      const updateVisible = () => {
-        for (const item of markers) {
-          if (item.prominent || map.getZoom() >= 8) layer.addLayer(item.marker);
-          else layer.removeLayer(item.marker);
-        }
-      };
-      updateVisible();
-      map.on('zoomend', updateVisible);
-      removeZoomListener = () => map.off('zoomend', updateVisible);
-      onStatus('airQuality', 'Πρόγνωση σε ' + markers.length + ' πόλεις · μεγέθυνε ή πάτησε τον χάρτη');
+      onStatus('airQuality', 'Πρόγνωση σε ' + visibleCities + ' πόλεις · πάτησε κουκκίδα ή τον χάρτη');
     }).catch(error => { if (!controller.signal.aborted) onStatus('airQuality', 'Η υπηρεσία αέρα δεν αποκρίνεται'); console.error(error); });
-    return () => { controller.abort(); pointRequest?.abort(); map.off('click', handleMapClick); removeZoomListener?.(); map.removeLayer(layer); };
+    return () => { controller.abort(); pointRequest?.abort(); map.off('click', handleMapClick); map.removeLayer(layer); };
   }, [mapRef, active.airQuality, onAirQuality, onStatus]);
   return null;
 }
