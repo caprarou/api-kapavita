@@ -170,3 +170,16 @@
 .source-dataset dl div { margin: 5px 0; font-size: 10px; line-height: 1.5; }
 .source-dataset dt { color: #92a8a8; }
 .source-dataset dd { margin: 0; color: #3e6269; font-weight: 600; }
+
+
+/* Make each provider card useful before opening its detailed profile. */
+.source-card { min-height: 0; }
+.source-card-body .source-data-preview { display: flex; flex-direction: column; gap: 4px; color: #315f61; }
+.source-card-body .source-data-preview b { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+.source-card-body .source-data-preview span { color: #214e56; font-weight: 650; }
+.source-card-body .source-card-fields { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; color: #547478; }
+.source-card-fields b { color: #41786f; }
+.source-card-body .source-card-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; align-items: center; margin-top: 14px; color: #247c70; font-weight: 700; font-size: 10px; }
+.source-state-active, .source-state-pending { padding: 4px 7px; border-radius: 5px; background: #e5f5ee; color: #197a64; }
+.source-state-pending { background: #fff4e6; color: #a16d30; }
+.source-card:focus-visible { outline: 3px solid #168b76; outline-offset: 2px; }
