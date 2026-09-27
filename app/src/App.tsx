@@ -143,12 +143,89 @@ function MapView({ mapRef, onSelect, showRegions, showMunicipalities, showCommun
   return <><div ref={container} className="map-canvas" aria-label="Διαδραστικός χάρτης της Ελλάδας" /><MapLayers mapRef={mapRef} active={active} onStatus={onStatus} onArea={onAreaSelect} onPlane={onPlane} onAirQuality={onAirQuality} /></>;
 }
 
-function SourceCard({ source, onOpen }: { source: SourceRecord; onOpen: (source: SourceRecord) => void }) {
+function SourceCard({ source, related, onOpen }: { source: SourceRecord; related: DatasetRecord[]; onOpen: (source: SourceRecord) => void }) {
   return <button className="source-card" onClick={() => onOpen(source)}>
     <span className="source-card-icon"><Database size={18} /></span>
-    <span className="source-card-body"><strong>{source.name}</strong><small>{source.authority}</small><span>{source.description}</span></span>
+    <span className="source-card-body"><strong>{source.name}</strong><small>{source.authority}</small><span className="source-data-preview"><b>Δίνει:</b> {related.map(item => item.name).join(' · ')}</span><span>{source.description}</span></span>
     <ArrowRight size={17} className="source-arrow" />
   </button>;
+}
+
+const readableField = (field: string) => {
+  const lower = field.toLocaleLowerCase('el');
+  if (lower.includes('icao24') || lower.includes('mode-s')) return 'Ταυτότητα αεροσκάφους ICAO24';
+  if (lower.includes('mmsi') || lower.includes('ssvid')) return 'Ταυτότητα πλοίου MMSI';
+  if (lower.includes('pm2_5') || lower.includes('pm2.5')) return 'Λεπτά σωματίδια PM2.5';
+  if (lower.includes('pm10')) return 'Σωματίδια PM10';
+  if (lower.includes('aqi')) return 'Δείκτης ποιότητας αέρα';
+  if (lower.includes('longitude') || lower === 'lon') return 'Γεωγραφικό μήκος';
+  if (lower.includes('latitude') || lower === 'lat') return 'Γεωγραφικό πλάτος';
+  if (lower.includes('callsign')) return 'Διακριτικό κλήσης';
+  if (lower.includes('datetime') || lower.includes('current.time') || lower === 'time') return 'Ώρα αναφοράς';
+  if (lower.includes('temperature')) return 'Θερμοκρασία';
+  if (lower.includes('precipitation')) return 'Βροχόπτωση';
+  if (lower.includes('wind_speed')) return 'Ταχύτητα ανέμου';
+  if (lower.includes('sog')) return 'Ταχύτητα πλοίου';
+  if (lower.includes('cog') || lower.includes('heading')) return 'Πορεία';
+  if (lower.includes('population') || lower.includes('pop21')) return 'Πληθυσμός';
+  if (lower.includes('iata')) return 'Κωδικός αεροδρομίου IATA';
+  if (lower.includes('geometry')) return 'Γεωμετρία στον χάρτη';
+  if (lower.includes('shipname')) return 'Όνομα πλοίου';
+  if (lower.includes('flag')) return 'Σημαία πλοίου';
+  if (lower.includes('shop')) return 'Είδος καταστήματος';
+  if (lower.includes('office')) return 'Είδος γραφείου';
+  if (lower.includes('amenity')) return 'Είδος δραστηριότητας';
+  const exact: Record<string, string> = {
+    kal2022: 'Κωδικός κοινότητας', code: 'Διοικητικός κωδικός',
+    lau_label3: 'Όνομα κοινότητας', name_gr: 'Ελληνική ονομασία',
+    populus: 'Μόνιμος πληθυσμός', pop11: 'Πληθυσμός 2011',
+    men21: 'Άνδρες 2021', women21: 'Γυναίκες 2021',
+    age0014: 'Ηλικίες 0–14', age1529: 'Ηλικίες 15–29', age3044: 'Ηλικίες 30–44',
+    age4559: 'Ηλικίες 45–59', age6074: 'Ηλικίες 60–74', age7500: 'Ηλικίες 75+',
+    nuts2: 'Κωδικός περιφέρειας NUTS 2',
+    shapeid: 'Κωδικός γεωμετρίας', shapename: 'Όνομα περιοχής', shapetype: 'Είδος περιοχής',
+    'id osm': 'Ταυτότητα σημείου OSM', 'addr:* (όπου υπάρχει)': 'Διεύθυνση, αν υπάρχει',
+    'sourcecode': 'Κωδικός προέλευσης', 'registryinfo': 'Στοιχεία δημόσιου μητρώου',
+    'selfreportedinfo': 'Στοιχεία που δήλωσε το πλοίο',
+    imo: 'Διεθνής αριθμός πλοίου IMO', ident: 'Κωδικός αεροδρομίου',
+    scheduled_service: 'Ένδειξη προγραμματισμένων πτήσεων',
+    municipality: 'Δηλωμένος δήμος', 'mrgid': 'Κωδικός θαλάσσιας περιοχής',
+    squawk: 'Κωδικός αναμεταδότη', 'origin_country (συναγόμενο από ICAO24)': 'Χώρα αναμεταδότη',
+    'geo_altitude (m)': 'Γεωμετρικό ύψος', 'baro_altitude (m)': 'Βαρομετρικό ύψος',
+    'velocity (m/s)': 'Ταχύτητα', 'true_track (°)': 'Κατεύθυνση',
+    'vertical_rate (m/s)': 'Άνοδος ή κάθοδος', on_ground: 'Στο έδαφος ή στον αέρα',
+    'last_contact (utc)': 'Τελευταία επικοινωνία', 'planned departure/arrival': 'Προγραμματισμένη αναχώρηση και άφιξη',
+    'actual departure': 'Πραγματική αναχώρηση', 'estimated arrival': 'Εκτιμώμενη άφιξη',
+    'status': 'Κατάσταση πτήσης', 'afm': 'ΑΦΜ', 'uid': 'Κωδικός εγγραφής',
+    'org_uid': 'Κωδικός φορέα', 'issuer_afm': 'ΑΦΜ φορέα έκδοσης',
+    'issuer_title': 'Επωνυμία φορέα έκδοσης', 'address': 'Διεύθυνση',
+    'entered_org_details_at': 'Ημερομηνία καταχώρισης', 'amount': 'Ποσό', 'vat': 'ΦΠΑ',
+    'year': 'Έτος', 'date': 'Ημερομηνία', 'value': 'Τιμή μέτρησης',
+    'sex': 'Φύλο', 'age': 'Ηλικιακή ομάδα', 'unit': 'Μονάδα μέτρησης',
+    'scientificname': 'Επιστημονική ονομασία είδους', 'eventdate': 'Ημερομηνία παρατήρησης',
+    'acq_date': 'Ημερομηνία δορυφορικής ανίχνευσης', 'acq_time': 'Ώρα δορυφορικής ανίχνευσης',
+    'satellite': 'Δορυφόρος', 'confidence': 'Βαθμός βεβαιότητας',
+  };
+  return exact[lower] ?? field;
+};
+
+function SourceDetail({ source, related, onClose }: { source: SourceRecord; related: DatasetRecord[]; onClose: () => void }) {
+  return <div className="detail-overlay" onClick={onClose}><aside className="detail-panel" onClick={e => e.stopPropagation()} aria-label={'Στοιχεία πηγής ' + source.name}>
+    <div className="detail-top"><span className="eyebrow">ΠΡΟΦΙΛ ΠΗΓΗΣ</span><button aria-label="Κλείσιμο" onClick={onClose}><X size={19}/></button></div>
+    <span className="detail-icon"><Database size={24}/></span><h2>{source.name}</h2><p className="detail-authority">{source.authority}</p>
+    <span className={source.status === 'Ενεργό επίπεδο' ? 'active-badge' : 'pending-badge'}>● {source.status}</span>
+    <p className="detail-description">{source.description}</p>
+    <section className="source-datasets"><h3>Τι δεδομένα δίνει</h3>
+      {related.map(item => <article className="source-dataset" key={item.id}><div className="source-dataset-heading"><strong>{item.name}</strong><span className={item.status === 'Ενεργό επίπεδο' ? 'dataset-status verified' : 'dataset-status'}>{item.status}</span></div>
+        <p>{item.notes}</p><div className="source-field-list"><b>Στοιχεία που περιγράφονται</b><div>{item.fields.length ? item.fields.map(field => <span key={field} title={field}>{readableField(field)}</span>) : <em>Δεν έχει επιβεβαιωθεί κατάλογος πεδίων.</em>}</div></div>
+        <dl><div><dt>Για ποια θέση;</dt><dd>{item.grain}</dd></div><div><dt>Πότε;</dt><dd>{item.temporal}</dd></div><div><dt>Πώς συνδέεται;</dt><dd>{item.join}</dd></div></dl>
+      </article>)}
+    </section>
+    <div className="detail-rows"><div><span>Κατηγορία</span><strong>{source.category}</strong></div><div><span>Κάλυψη</span><strong>{source.coverage}</strong></div><div><span>Πρόσβαση</span><strong>{source.access}</strong></div><div><span>Κόστος / όροι</span><strong>{source.pricing}</strong></div><div><span>Άδεια χρήσης</span><strong>{source.license ?? 'Προς επαλήθευση'}</strong></div><div><span>Εμπορική χρήση</span><strong>{source.commercialUse ?? 'Προς επαλήθευση'}</strong></div><div><span>Τελευταίος έλεγχος</span><strong>{source.lastVerified ?? 'Δεν έχει ελεγχθεί'}</strong></div></div>
+    <a className="visit-link" href={source.homepage} target="_blank" rel="noopener noreferrer">Ιστότοπος πηγής <ExternalLink size={16}/></a>
+    {source.documentation && <a className="documentation-link" href={source.documentation} target="_blank" rel="noopener noreferrer">Επίσημη τεκμηρίωση <ExternalLink size={15}/></a>}
+    <p className="detail-disclaimer">Οι ενδείξεις «τεκμηριωμένο» και «υποψήφιο» δεν σημαίνουν ότι υπάρχουν ήδη δεδομένα αυτής της πηγής στον χάρτη. Τα πεδία τους ελέγχονται πριν ενεργοποιηθεί επίπεδο.</p>
+  </aside></div>;
 }
 
 function DatasetCard({ dataset }: { dataset: DatasetRecord }) {
@@ -189,7 +266,7 @@ function App() {
   const overlayNames: Partial<Record<string, OverlayKey>> = { 'Πληθυσμός': 'population', 'Θαλάσσιες περιοχές': 'marine', 'Αεροσκάφη': 'aircraft', 'Αεροδρόμια': 'airports', 'Καιρός': 'weather', 'Ποιότητα αέρα': 'airQuality' };
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ Ξηρά: true, Θάλασσα: true, Αέρας: true, Περιβάλλον: true });
   const filteredDatasets = useMemo(() => datasets.filter(d => `${d.name} ${d.provider} ${d.grain} ${d.fields.join(' ')}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
-  const filteredSources = useMemo(() => sources.filter(s => `${s.name} ${s.category} ${s.authority}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
+  const filteredSources = useMemo(() => sources.filter(s => `${s.name} ${s.category} ${s.authority} ${datasets.filter(d => d.sourceId === s.id).map(d => [d.name, d.notes, ...d.fields].join(' ')).join(' ')}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
   const filteredPlaces = useMemo(() => places.filter(p => `${p.name} ${p.detail}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
   const searchableAreas = useMemo(() => (areaIndex ?? []).map(area => ({ ...area, searchName: normalizeSearch(area.name), shortName: shortAreaName(area.name) })), [areaIndex]);
   const filteredAreas = useMemo(() => {
@@ -258,9 +335,9 @@ function App() {
           {selectedAirQuality && activeOverlays.airQuality && !selectedAircraft && <div className="air-quality-card" role="region" aria-label="Ποιότητα αέρα"><div className="aircraft-card-header"><span className="eyebrow">ΠΟΙΟΤΗΤΑ ΑΕΡΑ · ΕΚΤΙΜΗΣΗ ΜΟΝΤΕΛΟΥ</span><button aria-label="Κλείσιμο ποιότητας αέρα" onClick={() => setSelectedAirQuality(null)}><X size={16}/></button></div><h2>{selectedAirQuality.city}</h2><div className="air-quality-summary" style={{ borderColor: airQualityBand(selectedAirQuality.aqi).color, backgroundColor: airQualityBand(selectedAirQuality.aqi).color + '13' }}><span className="air-quality-value" style={{ color: airQualityBand(selectedAirQuality.aqi).color }}>{Math.round(selectedAirQuality.aqi)}</span><div><strong style={{ color: airQualityBand(selectedAirQuality.aqi).color }}>{airQualityBand(selectedAirQuality.aqi).name}</strong><small>Ευρωπαϊκός δείκτης ποιότητας αέρα</small></div></div><p className="air-quality-advice">{airQualityBand(selectedAirQuality.aqi).message}</p><div className="air-quality-scale" aria-label="Κλίμακα ποιότητας αέρα"><span>Καλή</span><span>Ικανοποιητική</span><span>Μέτρια</span><span>Κακή</span><span>Πολύ κακή</span><span>Εξαιρετικά κακή</span></div><details className="air-quality-details"><summary>Τι είναι οι αριθμοί;</summary><p><b>Ευρωπαϊκός δείκτης:</b> όσο μικρότερος, τόσο καλύτερα. Η ένδειξη συνοψίζει πέντε ρύπους. <b>PM2.5:</b> πολύ μικρά αιωρούμενα σωματίδια. <b>PM10:</b> μεγαλύτερα εισπνεόμενα σωματίδια.</p><p>PM2.5: {selectedAirQuality.pm25 == null ? '—' : selectedAirQuality.pm25.toLocaleString('el-GR') + ' μg/m³'} · PM10: {selectedAirQuality.pm10 == null ? '—' : selectedAirQuality.pm10.toLocaleString('el-GR') + ' μg/m³'}</p></details><p className="air-quality-source">Τρέχουσα εκτίμηση CAMS μέσω Open-Meteo · {selectedAirQuality.time.replace('T', ' ')} ώρα Ελλάδας. Πρόκειται για εκτίμηση μοντέλου, όχι μέτρηση σταθμού ή προσωπική έκθεση.</p><a href="https://www.eea.europa.eu/en/about/contact-us/faqs/what-do-the-air-quality-index-values-mean" target="_blank" rel="noopener noreferrer">Τι σημαίνει ο δείκτης; ↗</a><a href="https://airindex.eea.europa.eu/AQI/index.html" target="_blank" rel="noopener noreferrer">Δες μετρήσεις σταθμών στον ευρωπαϊκό χάρτη ↗</a></div>}
           {selectedAircraft && activeOverlays.aircraft && <div className="aircraft-card"><div className="aircraft-card-header"><span className="eyebrow">ΑΕΡΟΣΚΑΦΟΣ · OPENSKY</span><button aria-label="Κλείσιμο καρτέλας αεροσκάφους" onClick={() => setSelectedAircraft(null)}><X size={16}/></button></div><h2>{selectedAircraft.callsign || selectedAircraft.icao24} {selectedAircraft.originCountry === 'Greece' && <span className="greek-aircraft-badge">Κωδικός Ελλάδας</span>}</h2><div className="aircraft-stats"><div><small>Ταυτότητα ICAO24</small><strong>{selectedAircraft.icao24.toUpperCase()}</strong></div><div><small>Κωδικός χώρας</small><strong>{selectedAircraft.originCountry || 'Άγνωστη'}</strong></div><div><small>Ύψος (γεωμετρικό)</small><strong>{selectedAircraft.altitude == null ? '—' : `${Math.round(selectedAircraft.altitude).toLocaleString('el-GR')} m`}</strong></div><div><small>Ταχύτητα εδάφους</small><strong>{selectedAircraft.velocity == null ? '—' : `${Math.round(selectedAircraft.velocity * 3.6).toLocaleString('el-GR')} km/h`}</strong></div><div><small>Πορεία</small><strong>{selectedAircraft.heading == null ? '—' : `${Math.round(selectedAircraft.heading)}°`}</strong></div><div><small>Κατάσταση</small><strong>{selectedAircraft.onGround ? 'Στο έδαφος' : 'Σε πτήση'}</strong></div><div><small>Άνοδος / κάθοδος</small><strong>{selectedAircraft.verticalRate == null ? '—' : `${selectedAircraft.verticalRate.toFixed(1)} m/s`}</strong></div><div><small>Squawk</small><strong>{selectedAircraft.squawk || '—'}</strong></div></div><div className="flight-status-pending"><strong>Δρομολόγιο και ώρες πτήσης</strong><span>Αναχώρηση, εκτιμώμενη άφιξη και καθυστέρηση: δεν παρέχονται από το OpenSky. Θα εμφανιστούν εδώ μετά σύνδεση υπηρεσίας flight status με επιβεβαιωμένη αντιστοίχιση πτήσης. Ο εξωτερικός σύνδεσμος αναζητά με διακριτικό κλήσης· έλεγξε ότι ταιριάζουν ημερομηνία και αεροσκάφος.</span>{selectedAircraft.callsign && <a href={`https://www.flightaware.com/live/flight/${encodeURIComponent(selectedAircraft.callsign.trim().toUpperCase())}`} target="_blank" rel="noopener noreferrer">Άνοιξε το {selectedAircraft.callsign.trim()} στο FlightAware ↗</a>}</div><p>Τελευταία επαφή: {new Date(selectedAircraft.lastContact * 1000).toLocaleString('el-GR', { timeZone: 'Europe/Athens' })} · Στιγμιότυπο: {new Date(selectedAircraft.snapshotTime * 1000).toLocaleString('el-GR', { timeZone: 'Europe/Athens' })}</p><small className="aircraft-card-note">Η χώρα συνάγεται από τον κωδικό αναμεταδότη. Δεν υποδηλώνει αεροπορική εταιρεία ή προορισμό.</small></div>}{(!selectedAircraft || !activeOverlays.aircraft) && (!selectedAirQuality || !activeOverlays.airQuality) && <div className="map-info-card"><span className="info-card-icon"><MapPin size={20}/></span><div><span className="eyebrow">ΤΟΠΟΘΕΣΙΑ</span><h2>{selectedPlace?.name ?? 'Επιλεγμένο σημείο'}</h2><p>{selectedPlace?.detail ?? (selectedPoint ? `${selectedPoint[1].toFixed(4)}° Β, ${selectedPoint[0].toFixed(4)}° Α` : 'Ελλάδα')}</p></div><div className="info-separator"/><div className="info-availability"><span className="small-status-dot"/><span>Θεματικά δεδομένα<br/><strong>{activeOverlays.population ? 'Πληθυσμός 2021' : showMunicipalities || showCommunities ? 'Απογραφή 2021' : Object.values(activeOverlays).some(Boolean) ? 'Ενεργά επίπεδα' : showRegions ? '1 ιστορικό επίπεδο' : 'Δεν έχουν συνδεθεί'}</strong></span></div></div>}
           <div className="map-bottom-note">Βάση: OpenStreetMap · Πληθυσμός: ΕΛΣΤΑΤ 2021 · Πτήσεις: OpenSky · Μετεωρολογικά μοντέλα: Open-Meteo/CAMS · Θαλάσσιες περιοχές: Marine Regions / IHO (μη νομικά όρια)</div>
-        </> : <div className="catalog-content"><div className="catalog-title-row"><div><span className="eyebrow">GREECE DATA REGISTRY / 001</span><h2>Τι δίνει κάθε πηγή</h2><p>Κάθε σύνολο καταγράφει τα βασικά πεδία του, τη γεωγραφική μονάδα, τον χρόνο αναφοράς, την πρόσβαση και τα πιθανά κλειδιά σύνδεσης. «Ελεγμένο σχήμα» δεν σημαίνει επιβεβαιωμένη άδεια επανάχρησης.</p></div><span className="count-pill">{datasets.length} σύνολα</span></div><div className="catalog-search"><Search size={19}/><input aria-label="Αναζήτηση πηγής" placeholder="Πηγή, σύνολο ή πεδίο (π.χ. CODE)..." value={query} onChange={e => setQuery(e.target.value)}/></div><div className="dataset-intro"><strong>Μητρώο συνόλων</strong><span>Άνοιξε μια εγγραφή για να δεις τα πεδία και πώς μπορεί να συνδεθεί με άλλες.</span></div><div className="dataset-list">{filteredDatasets.map(d => <DatasetCard key={d.id} dataset={d}/>)}</div>{!filteredDatasets.length && <div className="catalog-empty">Δεν βρέθηκε σύνολο με αυτόν τον όρο.</div>}<div className="dataset-intro provider-heading"><strong>Φορείς και πύλες</strong><span>Ελληνικοί, ευρωπαϊκοί και διεθνείς φορείς με κάλυψη στην Ελλάδα.</span></div><div className="catalog-grid">{filteredSources.map(s => <SourceCard key={s.id} source={s} onOpen={showSource}/>)}</div><div className="catalog-bottom"><span>Οι συνδέσεις μεταξύ διαφορετικών φορέων παραμένουν υποψήφιες μέχρι να ελεγχθούν.</span><span>{datasets.length} σύνολα · {sources.length} πηγές</span></div></div>}
+        </> : <div className="catalog-content"><div className="catalog-title-row"><div><span className="eyebrow">GREECE DATA REGISTRY / 001</span><h2>Τι δίνει κάθε πηγή</h2><p>Κάθε σύνολο καταγράφει τα βασικά πεδία του, τη γεωγραφική μονάδα, τον χρόνο αναφοράς, την πρόσβαση και τα πιθανά κλειδιά σύνδεσης. «Ελεγμένο σχήμα» δεν σημαίνει επιβεβαιωμένη άδεια επανάχρησης.</p></div><span className="count-pill">{datasets.length} σύνολα</span></div><div className="catalog-search"><Search size={19}/><input aria-label="Αναζήτηση πηγής" placeholder="Πηγή, σύνολο ή πεδίο (π.χ. CODE)..." value={query} onChange={e => setQuery(e.target.value)}/></div><div className="dataset-intro"><strong>Μητρώο συνόλων</strong><span>Άνοιξε μια εγγραφή για να δεις τα πεδία και πώς μπορεί να συνδεθεί με άλλες.</span></div><div className="dataset-list">{filteredDatasets.map(d => <DatasetCard key={d.id} dataset={d}/>)}</div>{!filteredDatasets.length && <div className="catalog-empty">Δεν βρέθηκε σύνολο με αυτόν τον όρο.</div>}<div className="dataset-intro provider-heading"><strong>Φορείς και πύλες</strong><span>Ελληνικοί, ευρωπαϊκοί και διεθνείς φορείς με κάλυψη στην Ελλάδα.</span></div><div className="catalog-grid">{filteredSources.map(s => <SourceCard key={s.id} source={s} related={datasets.filter(d => d.sourceId === s.id)} onOpen={showSource}/>)}</div><div className="catalog-bottom"><span>Οι συνδέσεις μεταξύ διαφορετικών φορέων παραμένουν υποψήφιες μέχρι να ελεγχθούν.</span><span>{datasets.length} σύνολα · {sources.length} πηγές</span></div></div>}
       </section>
-      {selectedSource && <div className="detail-overlay" onClick={() => setSelectedSource(null)}><aside className="detail-panel" onClick={e => e.stopPropagation()} aria-label="Στοιχεία πηγής"><div className="detail-top"><span className="eyebrow">ΠΡΟΦΙΛ ΠΗΓΗΣ</span><button aria-label="Κλείσιμο" onClick={() => setSelectedSource(null)}><X size={19}/></button></div><span className="detail-icon"><Database size={24}/></span><h2>{selectedSource.name}</h2><p className="detail-authority">{selectedSource.authority}</p><span className={selectedSource.status === 'Ενεργό επίπεδο' ? 'active-badge' : 'pending-badge'}>● {selectedSource.status}</span><p className="detail-description">{selectedSource.description}</p><div className="detail-rows"><div><span>Κατηγορία</span><strong>{selectedSource.category}</strong></div><div><span>Κάλυψη</span><strong>{selectedSource.coverage}</strong></div><div><span>Πρόσβαση</span><strong>{selectedSource.access}</strong></div><div><span>Κόστος / όροι</span><strong>{selectedSource.pricing}</strong></div><div><span>Άδεια χρήσης</span><strong>{selectedSource.license ?? 'Προς επαλήθευση'}</strong></div><div><span>Εμπορική χρήση</span><strong>{selectedSource.commercialUse ?? 'Προς επαλήθευση'}</strong></div><div><span>Τελευταίος έλεγχος</span><strong>{selectedSource.lastVerified ?? 'Δεν έχει ελεγχθεί'}</strong></div></div><a className="visit-link" href={selectedSource.homepage} target="_blank" rel="noopener noreferrer">Ιστότοπος πηγής <ExternalLink size={16}/></a>{selectedSource.documentation && <a className="documentation-link" href={selectedSource.documentation} target="_blank" rel="noopener noreferrer">Επίσημη τεκμηρίωση <ExternalLink size={15}/></a>}<p className="detail-disclaimer">Η καταχώριση δεν βεβαιώνει διαθεσιμότητα API, άδεια χρήσης ή πρόσφατη ενημέρωση.</p></aside></div>}
+      {selectedSource && <SourceDetail source={selectedSource} related={datasets.filter(d => d.sourceId === selectedSource.id)} onClose={() => setSelectedSource(null)}/>}
     </main>
   </div>;
 }

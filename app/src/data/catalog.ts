@@ -2,13 +2,13 @@ export type SourceRecord = {
   id: string;
   name: string;
   authority: string;
-  category: 'Δημόσιο' | 'Στατιστική' | 'Γεωχωρικά' | 'Περιβάλλον' | 'Μεταφορές';
+  category: string;
   description: string;
   homepage: string;
   documentation: string | null;
-  coverage: 'Ελλάδα' | 'Ελλάδα / Ευρώπη' | 'Ελλάδα / παγκόσμια';
-  access: 'Ανοιχτή πύλη' | 'Αίτηση API key' | 'Άγνωστο';
-  pricing: 'Δωρεάν' | 'Προς επαλήθευση';
+  coverage: string;
+  access: string;
+  pricing: string;
   license: string | null;
   commercialUse: string | null;
   updateFrequency: string | null;
