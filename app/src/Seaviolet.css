@@ -28,3 +28,15 @@
 .sea-primary { display: inline-flex; align-items: center; justify-content: center; gap: 9px; width: 100%; border: 0; border-radius: 9px; padding: 15px; background: #138477; color: white; font-size: 13px; font-weight: 800; cursor: pointer; }.sea-primary:hover { background: #0c6d62; }.sea-only-preview { color: #869a9e; font-size: 10px; line-height: 1.5; margin: 10px 0 0; }
 @media (max-width: 850px) { .sea-page { padding: 25px 20px 50px; }.sea-layout { grid-template-columns: 1fr; }.sea-side { grid-template-columns: repeat(2,minmax(0,1fr)); }.sea-switch { grid-column: 1/-1; } }
 @media (max-width: 580px) { .sea-header { display: block; }.sea-demo { display: inline-block; margin-top: 14px; }.sea-side { grid-template-columns: 1fr; }.sea-card { padding: 17px; }.sea-vessel-grid { gap: 8px; }.sea-vessel-grid>div { padding: 10px; }.sea-history>div { flex-direction: column; }.sea-tabs { width: 100%; }.sea-tabs button { flex: 1; justify-content: center; } }
+
+.sea-identity { margin: 16px 0; padding: 11px 13px; background: #edf6f2; border-radius: 8px; color: #497572; font-size: 11px; line-height: 1.7; }
+.sea-map-title { font-size: 13px; margin: 23px 0 10px; color: #244b52; }
+.sea-map-wrap { height: 280px; position: relative; margin-bottom: 13px; border-radius: 9px; overflow: hidden; background: #e8efeb; }
+.sea-map { height: 100%; width: 100%; }
+.sea-map-empty { position: absolute; z-index: 400; left: 50%; top: 50%; transform: translate(-50%,-50%); width: min(80%,310px); display: grid; gap: 7px; justify-items: center; text-align: center; padding: 18px; background: #fffef9f0; border-radius: 11px; box-shadow: 0 7px 22px #203d3a24; font-size: 11px; color: #45676c; pointer-events: none; }
+.sea-map-empty span { font-size: 10px; line-height: 1.5; }
+.sea-map-empty svg { color: #da9d4e; }
+.sea-explain + .sea-explain { margin-top: 9px; }
+.sea-explain a { color: #167d72; text-decoration: underline; }
+.sea-link-button { color: #117d75; font-weight: 800; background: none; border: 0; text-decoration: underline; cursor: pointer; padding: 0; }
+@media (max-width:580px) { .sea-map-wrap { height: 230px; } .sea-greeting-meta { flex-wrap: wrap; line-height: 1.5; } }
