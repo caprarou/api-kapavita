@@ -138,7 +138,7 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onSta
   useEffect(() => {
     if (!active.airQuality || !mapRef.current) return;
     const map = mapRef.current; const controller = new AbortController(); const layer = L.layerGroup().addTo(map);
-    onStatus('airQuality', 'Φόρτωση προγνωστικής ποιότητας αέρα…');
+    onStatus('airQuality', 'Φόρτωση εκτίμησης ποιότητας αέρα…');
     let pointRequest: AbortController | null = null;
     const handleMapClick = (event: L.LeafletMouseEvent) => {
       pointRequest?.abort();
@@ -166,7 +166,7 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onSta
         marker.addTo(layer);
         visibleCities++;
       }
-      onStatus('airQuality', 'Πρόγνωση σε ' + visibleCities + ' πόλεις · πάτησε κουκκίδα ή τον χάρτη');
+      onStatus('airQuality', 'Εκτίμηση μοντέλου σε ' + visibleCities + ' πόλεις · πάτησε κουκκίδα ή τον χάρτη');
     }).catch(error => { if (!controller.signal.aborted) onStatus('airQuality', 'Η υπηρεσία αέρα δεν αποκρίνεται'); console.error(error); });
     return () => { controller.abort(); pointRequest?.abort(); map.off('click', handleMapClick); map.removeLayer(layer); };
   }, [mapRef, active.airQuality, onAirQuality, onStatus]);

@@ -139,7 +139,7 @@
 .air-quality-details summary { cursor: pointer; font-weight: 700; }
 .air-quality-details p { margin: 7px 0; }
 .air-quality-source { color: #69818a; font-size: 10px; line-height: 1.5; }
-.air-quality-card a { color: #147b79; font-size: 11px; }
+.air-quality-card a { display: block; margin-top: 5px; color: #147b79; font-size: 11px; }
 @media(max-width:680px) { .air-quality-card { left: 8px; bottom: 8px; width: calc(100% - 16px); max-height: calc(100% - 65px); padding: 12px; } }
 
 .flight-status-pending a { display: block; margin-top: 8px; color: #176e80; font-size: 11px; }
