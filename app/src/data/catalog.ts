@@ -6,8 +6,8 @@ export type SourceRecord = {
   description: string;
   homepage: string;
   documentation: string | null;
-  coverage: 'Ελλάδα' | 'Ελλάδα / παγκόσμια';
-  access: 'Ανοιχτή πύλη' | 'Άγνωστο';
+  coverage: 'Ελλάδα' | 'Ελλάδα / Ευρώπη' | 'Ελλάδα / παγκόσμια';
+  access: 'Ανοιχτή πύλη' | 'Αίτηση API key' | 'Άγνωστο';
   pricing: 'Δωρεάν' | 'Προς επαλήθευση';
   license: string | null;
   commercialUse: string | null;
