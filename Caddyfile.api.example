@@ -1,0 +1,6 @@
+# Add to /etc/caddy/Caddyfile once the first build is ready.
+api.kapavita.gr {
+    root * /home/dev/projects/kapavita/app/dist
+    try_files {path} /index.html
+    file_server
+}
