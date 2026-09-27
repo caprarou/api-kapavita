@@ -8,6 +8,9 @@ import './App.css';
 
 type Panel = 'map' | 'catalog';
 type Place = { name: string; detail: string; center: [number, number]; zoom: number };
+type AreaSearchRecord = { kind: 'municipality' | 'community'; code: string; name: string; parent?: string; bbox: [number, number, number, number]; population: number | null };
+const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('el').replace(/ς/g, 'σ').trim();
+const shortAreaName = (value: string) => normalizeSearch(value).replace(/^δημοτικη κοινοτητα\s+|^δημοσ\s+/, '');
 const places: Place[] = [
   { name: 'Ελλάδα', detail: 'Χώρα', center: [23.8, 38.7], zoom: 5.7 },
   { name: 'Αθήνα', detail: 'Αττική', center: [23.7275, 37.9838], zoom: 10.5 },
@@ -82,7 +85,7 @@ function MapView({ mapRef, onSelect, showRegions, showMunicipalities, showCommun
           shape.bindTooltip(name, { sticky: true });
           shape.on('click', event => {
             L.DomEvent.stopPropagation(event);
-            onAreaSelect(name, `Δημοτική κοινότητα · απογραφή 2021 · μόνιμος πληθυσμός ${Number(props.POPULUS ?? 0).toLocaleString('el-GR')}`);
+            onAreaSelect(name, `${name.startsWith('ΨΕΥΔΟ') ? 'Απογραφική ψευδοκοινότητα' : 'Δημοτική κοινότητα'} · απογραφή 2021 · μόνιμος πληθυσμός ${Number(props.POPULUS ?? 0).toLocaleString('el-GR')}`);
           });
         },
       }).addTo(map);
@@ -151,6 +154,16 @@ function App() {
   const [panel, setPanel] = useState<Panel>('map');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [areaIndex, setAreaIndex] = useState<AreaSearchRecord[] | null>(null);
+  const [searchError, setSearchError] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/data/greek-areas-search-2021.json', { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Η αναζήτηση δεν φορτώθηκε'); return response.json(); })
+      .then(data => { if (!controller.signal.aborted) setAreaIndex(data); })
+      .catch(error => { if (error.name !== 'AbortError') setSearchError(true); });
+    return () => controller.abort();
+  }, []);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(places[0]);
   const [selectedPoint, setSelectedPoint] = useState<[number, number] | null>(null);
   const [selectedSource, setSelectedSource] = useState<SourceRecord | null>(null);
@@ -161,7 +174,26 @@ function App() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ Ξηρά: true, Θάλασσα: true, Αέρας: true, Περιβάλλον: true });
   const filteredSources = useMemo(() => sources.filter(s => `${s.name} ${s.category} ${s.authority}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
   const filteredPlaces = useMemo(() => places.filter(p => `${p.name} ${p.detail}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
+  const searchableAreas = useMemo(() => (areaIndex ?? []).map(area => ({ ...area, searchName: normalizeSearch(area.name), shortName: shortAreaName(area.name) })), [areaIndex]);
+  const filteredAreas = useMemo(() => {
+    const term = normalizeSearch(query);
+    if (term.length < 2) return [];
+    const rank = (area: typeof searchableAreas[number]) => area.shortName === term ? 0 : area.shortName.startsWith(term) ? 1 : area.searchName.includes(term) ? 2 : area.code.includes(term) ? 3 : 4;
+    return searchableAreas.filter(area => rank(area) < 4)
+      .sort((a, b) => rank(a) - rank(b) || (a.kind === 'municipality' ? -1 : 1) - (b.kind === 'municipality' ? -1 : 1) || a.name.localeCompare(b.name, 'el'))
+      .slice(0, 12);
+  }, [query, searchableAreas]);
+
   const goTo = (place: Place) => { setPanel('map'); setSelectedPlace(place); setSelectedPoint(null); setSearchOpen(false); setQuery(''); setMobileMenu(false); setSelectedSource(null); requestAnimationFrame(() => mapRef.current?.flyTo([place.center[1], place.center[0]], place.zoom, { duration: 1.1 })); };
+  const goToArea = (area: AreaSearchRecord) => {
+    const bounds = L.latLngBounds([area.bbox[1], area.bbox[0]], [area.bbox[3], area.bbox[2]]);
+    const detail = `${area.kind === 'municipality' ? 'Δήμος' : 'Δημοτική κοινότητα'} · απογραφή 2021${area.parent ? ` · ${area.parent}` : ''}${area.population == null ? '' : ` · ${area.population.toLocaleString('el-GR')} κάτοικοι`}`;
+    setPanel('map'); setSelectedPlace({ name: area.name, detail, center: [bounds.getCenter().lng, bounds.getCenter().lat], zoom: area.kind === 'community' ? 12 : 10 });
+    setSelectedPoint(null); setSearchOpen(false); setQuery(''); setMobileMenu(false); setSelectedSource(null);
+    if (area.kind === 'municipality') setShowMunicipalities(true);
+    else setShowCommunities(true);
+    requestAnimationFrame(() => mapRef.current?.fitBounds(bounds, { padding: [36, 36], maxZoom: area.kind === 'community' ? 12 : 11, animate: true }));
+  };
   const showSource = (source: SourceRecord) => { setSelectedSource(source); setPanel('catalog'); setSearchOpen(false); setMobileMenu(false); };
   const selectPoint = useCallback((point: [number, number]) => { setSelectedPoint(point); setSelectedPlace(null); setSelectedSource(null); }, [setSelectedPoint, setSelectedPlace, setSelectedSource]);
   const selectRegion = useCallback((name: string) => { setSelectedPlace({ name, detail: 'Περιφέρεια · όρια 2016', center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedPlace, setSelectedPoint]);
@@ -178,8 +210,8 @@ function App() {
       <aside className={`sidebar ${panel === 'catalog' ? 'catalog-sidebar' : ''}`}>
         {panel === 'map' ? <>
           <div className="sidebar-heading"><span className="eyebrow">ΕΞΕΡΕΥΝΗΣΗ</span><h1>Η Ελλάδα,<br/><em>σε ένα μέρος.</em></h1><p>Εξερεύνησε τον χώρο. Τα θεματικά δεδομένα θα ενεργοποιούνται καθώς επαληθεύονται οι πηγές τους.</p></div>
-          <div className="search-wrap"><Search size={19} /><input aria-label="Αναζήτηση περιοχής ή πηγής" placeholder="Αναζήτησε περιοχή ή πηγή..." value={query} onChange={e => { setQuery(e.target.value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} /><span className="search-shortcut">⌕</span>
-            {searchOpen && query && <div className="search-results">{filteredPlaces.map(p => <button key={p.name} onClick={() => goTo(p)}><MapPin size={15}/><span><strong>{p.name}</strong><small>{p.detail}</small></span></button>)}{filteredSources.slice(0, 4).map(s => <button key={s.id} onClick={() => showSource(s)}><Database size={15}/><span><strong>{s.name}</strong><small>Πηγή δεδομένων</small></span></button>)}{!filteredPlaces.length && !filteredSources.length && <div className="no-results">Δεν βρέθηκε αποτέλεσμα στον αρχικό κατάλογο.</div>}</div>}
+          <div className="search-wrap"><Search size={19} /><input aria-label="Αναζήτηση περιοχής ή πηγής" placeholder="Αναζήτησε δήμο, κοινότητα ή πηγή..." value={query} onChange={e => { setQuery(e.target.value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} /><span className="search-shortcut">⌕</span>
+            {searchOpen && query && <div className="search-results">{filteredAreas.map(area => <button key={`${area.kind}-${area.code}`} onClick={() => goToArea(area)}><MapPin size={15}/><span><strong>{area.name}</strong><small>{area.kind === 'municipality' ? 'Δήμος' : 'Κοινότητα'} · {area.parent ?? 'ΕΛΣΤΑΤ 2021'} · {area.code}</small></span></button>)}{!filteredAreas.length && filteredPlaces.map(p => <button key={p.name} onClick={() => goTo(p)}><MapPin size={15}/><span><strong>{p.name}</strong><small>{p.detail}</small></span></button>)}{filteredSources.slice(0, 3).map(s => <button key={s.id} onClick={() => showSource(s)}><Database size={15}/><span><strong>{s.name}</strong><small>Πηγή δεδομένων</small></span></button>)}{!filteredAreas.length && !filteredPlaces.length && !filteredSources.length && <div className="no-results" role="status">{searchError ? 'Η αναζήτηση περιοχών δεν φορτώθηκε.' : !areaIndex ? 'Φόρτωση περιοχών...' : 'Δεν βρέθηκε περιοχή ή πηγή.'}</div>}</div>}
           </div>
           <div className="sidebar-section-title"><span>ΕΠΙΠΕΔΑ ΧΑΡΤΗ</span><SlidersHorizontal size={15}/></div>
           <div className="base-layer"><span className="layer-symbol"><Compass size={19}/></span><span><strong>Βασικός χάρτης</strong><small>OpenStreetMap</small></span><span className="on-indicator"><Check size={14}/></span></div>
