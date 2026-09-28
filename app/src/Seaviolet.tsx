@@ -6,6 +6,16 @@ import './Seaviolet.css';
 type View = 'family' | 'crew';
 type Context = 'Εν πλω' | 'Αγκυροβολημένο' | 'Άφιξη' | 'Αναχώρηση' | 'Νύχτα';
 type Greeting = { text: string; area: string; time: Date };
+const greetingHistoryKey = 'liakos-greeting-history-v1';
+const readGreetingHistory = (): Greeting[] => {
+  try {
+    const raw = window.localStorage.getItem(greetingHistoryKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => ({ text: String(item?.text ?? '').slice(0, 180), area: String(item?.area ?? 'Χωρίς περιοχή'), time: new Date(String(item?.time ?? '')) }))
+      .filter((item) => item.text.trim() && Number.isFinite(item.time.getTime())).slice(0, 5);
+  } catch { return []; }
+};
 type Position = { mmsi: number; latitude: number; longitude: number; observedAt: string; source: string; speedKnots?: number; course?: number; heading?: number; destination?: string; eta?: string };
 type VesselFields = Record<string, boolean>;
 const defaultVesselFields: VesselFields = { identity:true, technical:true, status:true, destination:true, course:true, clock:true, position:true, route:true, stops:true, source:true };
@@ -235,7 +245,7 @@ export function Seaviolet() {
   const [template,setTemplate] = useState(recommended['Εν πλω']);
   const [custom,setCustom] = useState('');
   const [quoteChoice,setQuoteChoice] = useState(false);
-  const [history,setHistory] = useState<Greeting[]>([]);
+  const [history,setHistory] = useState<Greeting[]>(readGreetingHistory);
   const [notice,setNotice] = useState(false);
   const [lessonAnswer,setLessonAnswer] = useState<string | null>(null);
   const [position,setPosition] = useState<Position | null>(null);
@@ -243,6 +253,7 @@ export function Seaviolet() {
   const [offset,setOffset] = useState<number | null>(() => { const n = Number(window.localStorage.getItem('liakos-ship-utc-offset')); return window.localStorage.getItem('liakos-ship-utc-offset') !== null && Number.isInteger(n) && n >= -12 && n <= 14 ? n : null; });
   const [now,setNow] = useState(new Date());
   useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(t); }, []);
+  useEffect(() => { try { window.localStorage.setItem(greetingHistoryKey, JSON.stringify(history)); } catch { /* local storage can be unavailable in private browsing */ } }, [history]);
   useEffect(() => {
     fetch('/api/public', { cache:'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d?.vesselFields) setVesselFields((prev) => ({ ...prev, ...d.vesselFields })); }).catch(() => {});
     let alive = true;
