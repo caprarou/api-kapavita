@@ -29,7 +29,7 @@ const layerGroups = [
   { title: 'Ξηρά', icon: Layers3, entries: ['Περιφέρειες (2016)', 'Δήμοι (2021)', 'Δημοτικές κοινότητες (2021)', 'Πληθυσμός', 'Επιχειρήσεις', 'Ακίνητα'] },
   { title: 'Θάλασσα', icon: Waves, entries: ['Πλοία / AIS', 'Θαλάσσιες περιοχές', 'Θαλάσσιες ζώνες'] },
   { title: 'Αέρας', icon: Wind, entries: ['Αεροσκάφη', 'Αεροδρόμια'] },
-  { title: 'Περιβάλλον', icon: Globe2, entries: ['Καιρός', 'Ποιότητα αέρα', 'Μετρήσεις PM2.5 (σταθμοί)'] },
+  { title: 'Περιβάλλον', icon: Globe2, entries: ['Καιρός', 'Ποιότητα αέρα', 'Μετρήσεις PM2.5 (σταθμοί)', 'Σεισμοί'] },
 ];
 
 function MapView({ mapRef, onSelect, showRegions, showMunicipalities, showCommunities, active, onStatus, onPlane, onAirQuality, onEEA, onRegionSelect, onAreaSelect }: { mapRef: React.MutableRefObject<LeafletMap | null>; onSelect: (point: [number, number]) => void; showRegions: boolean; showMunicipalities: boolean; showCommunities: boolean; active: Record<OverlayKey, boolean>; onStatus: (key: OverlayKey, status: string) => void; onPlane: (plane: Plane & { snapshotTime: number }) => void; onAirQuality: (reading: AirReading) => void; onEEA: (reading: EEAReading | null) => void; onRegionSelect: (name: string) => void; onAreaSelect: (name: string, detail: string) => void }) {
@@ -302,14 +302,14 @@ function App() {
   const [showRegions, setShowRegions] = useState(false);
   const [showMunicipalities, setShowMunicipalities] = useState(false);
   const [showCommunities, setShowCommunities] = useState(false);
-  const [activeOverlays, setActiveOverlays] = useState<Record<OverlayKey, boolean>>({ population: false, airports: false, aircraft: false, marine: false, weather: false, airQuality: false, eeaAir: false });
+  const [activeOverlays, setActiveOverlays] = useState<Record<OverlayKey, boolean>>({ population: false, airports: false, aircraft: false, marine: false, weather: false, airQuality: false, eeaAir: false, earthquakes: false });
   const visibleOverlays = Object.fromEntries((Object.keys(activeOverlays) as OverlayKey[]).map(key => [key, activeOverlays[key] && features[key]])) as Record<OverlayKey, boolean>;
   const visibleRegions = showRegions && features.regions;
   const visibleMunicipalities = showMunicipalities && features.municipalities;
   const visibleCommunities = showCommunities && features.communities;
   const [overlayStatuses, setOverlayStatuses] = useState<Partial<Record<OverlayKey, string>>>({});
   const onOverlayStatus = useCallback((key: OverlayKey, status: string) => setOverlayStatuses(previous => previous[key] === status ? previous : { ...previous, [key]: status }), []);
-  const overlayNames: Partial<Record<string, OverlayKey>> = { 'Πληθυσμός': 'population', 'Θαλάσσιες περιοχές': 'marine', 'Αεροσκάφη': 'aircraft', 'Αεροδρόμια': 'airports', 'Καιρός': 'weather', 'Ποιότητα αέρα': 'airQuality', 'Μετρήσεις PM2.5 (σταθμοί)': 'eeaAir' };
+  const overlayNames: Partial<Record<string, OverlayKey>> = { 'Πληθυσμός': 'population', 'Θαλάσσιες περιοχές': 'marine', 'Αεροσκάφη': 'aircraft', 'Αεροδρόμια': 'airports', 'Καιρός': 'weather', 'Ποιότητα αέρα': 'airQuality', 'Μετρήσεις PM2.5 (σταθμοί)': 'eeaAir', 'Σεισμοί': 'earthquakes' };
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ Ξηρά: true, Θάλασσα: true, Αέρας: true, Περιβάλλον: true });
   const filteredDatasets = useMemo(() => datasets.filter(d => `${d.name} ${d.provider} ${d.grain} ${d.fields.join(' ')}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
   const filteredSources = useMemo(() => sources.filter(s => `${s.name} ${s.category} ${s.authority} ${datasets.filter(d => d.sourceId === s.id).map(d => [d.name, d.notes, ...d.fields].join(' ')).join(' ')}`.toLocaleLowerCase('el').includes(query.toLocaleLowerCase('el'))), [query]);
@@ -365,7 +365,7 @@ function App() {
             if (entry === 'Δήμοι (2021)') return <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={visibleMunicipalities} onChange={event => setShowMunicipalities(event.target.checked)} /><span>{entry}</span><small>ΕΛΣΤΑΤ</small></label>;
             if (entry === 'Δημοτικές κοινότητες (2021)') return <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={visibleCommunities} onChange={event => setShowCommunities(event.target.checked)} /><span>{entry}</span><small>ΕΛΣΤΑΤ</small></label>;
             const key = overlayNames[entry];
-            if (key) return <label className="layer-item available-layer thematic-layer" key={entry} title={overlayStatuses[key] ?? ''}><input type="checkbox" checked={activeOverlays[key]} onChange={event => setActiveOverlays(previous => ({ ...previous, [key]: event.target.checked }))} /><span>{entry}<small>{overlayStatuses[key] ?? ({ population: 'ΕΛΣΤΑΤ · 2021', airports: 'OurAirports', aircraft: 'OpenSky · στιγμιότυπο', marine: 'Marine Regions · Ιόνιο/Αιγαίο', weather: 'Open-Meteo · μοντέλο', airQuality: 'CAMS · 37 πόλεις και κάθε σημείο', eeaAir: 'EEA · ωριαίες μετρήσεις σταθμών' }[key])}</small></span></label>;
+            if (key) return <label className="layer-item available-layer thematic-layer" key={entry} title={overlayStatuses[key] ?? ''}><input type="checkbox" checked={activeOverlays[key]} onChange={event => setActiveOverlays(previous => ({ ...previous, [key]: event.target.checked }))} /><span>{entry}<small>{overlayStatuses[key] ?? ({ population: 'ΕΛΣΤΑΤ · 2021', airports: 'OurAirports', aircraft: 'OpenSky · στιγμιότυπο', marine: 'Marine Regions · Ιόνιο/Αιγαίο', weather: 'Open-Meteo · μοντέλο', airQuality: 'CAMS · 37 πόλεις και κάθε σημείο', eeaAir: 'EEA · ωριαίες μετρήσεις σταθμών', earthquakes: 'USGS · τελευταίο 24ωρο' }[key])}</small></span></label>;
             return <div className="layer-item awaiting-layer" key={entry} title={entry === 'Πλοία / AIS' ? 'Απαιτεί αξιόπιστη άδεια AIS και πρόσβαση σε ροή θέσεων' : entry === 'Θαλάσσιες ζώνες' ? 'Οι δικαιοδοτικές θαλάσσιες ζώνες χρειάζονται έλεγχο επίσημων ορίων και νομικού καθεστώτος' : entry === 'Ακίνητα' ? 'Δεν υπάρχει εδώ δημόσια επαληθευμένη κτηματολογική γεωμετρία ιδιοκτησιών' : 'Απαιτεί επαληθευμένα γεωεντοπισμένα δεδομένα επιχειρήσεων'}><span className="empty-check"/><span>{entry}</span><small>{entry === 'Πλοία / AIS' ? 'Απαιτεί AIS' : 'Σε έλεγχο'}</small></div>;
           })}</div>}</div>)}</div>
           <div className="sidebar-footer"><Info size={17}/><span>Πλοία, επιχειρήσεις, ακίνητα και δικαιοδοτικές ζώνες περιμένουν ελεγμένα δεδομένα. {features.catalog && <button onClick={() => switchPanel('catalog')}>Δες τις πηγές <ArrowRight size={13}/></button>}</span></div>
@@ -399,4 +399,5 @@ function App() {
   </div>;
 }
 export default App;
+
 

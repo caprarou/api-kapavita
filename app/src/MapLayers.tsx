@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import L from 'leaflet';
 import type { Map as LeafletMap } from 'leaflet';
 
-export type OverlayKey = 'population' | 'airports' | 'aircraft' | 'marine' | 'weather' | 'airQuality' | 'eeaAir';
+export type OverlayKey = 'population' | 'airports' | 'aircraft' | 'marine' | 'weather' | 'airQuality' | 'eeaAir' | 'earthquakes';
 type Props = {
   mapRef: React.MutableRefObject<LeafletMap | null>;
   active: Record<OverlayKey, boolean>;
@@ -216,3 +216,4 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
   }, [mapRef, active.eeaAir, onEEA, onStatus]);
   return null;
 }
+
