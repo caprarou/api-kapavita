@@ -235,8 +235,8 @@ function SourceDetail({ source, related, onClose }: { source: SourceRecord; rela
     <span className={source.status === 'Ενεργό επίπεδο' ? 'active-badge' : 'pending-badge'}>● {source.status}</span>
     <p className="detail-description">{source.description}</p>
     <section className="source-datasets"><h3>Τι μπορείς να δεις από αυτή την πηγή</h3>
-      {related.map(item => <article className="source-dataset" key={item.id}><div className="source-dataset-heading"><strong>{item.name}</strong><span className={item.status === 'Ενεργό επίπεδο' ? 'dataset-status verified' : 'dataset-status'}>{item.status}</span></div>
-        <p>{item.notes}</p><div className="source-field-list"><b>{source.status === 'Ενεργό επίπεδο' ? 'Στοιχεία που περιγράφονται' : 'Ενδεικτικά στοιχεία / πεδία υπό έλεγχο'}</b><div>{item.fields.length ? item.fields.map(field => <span key={field} title={field}>{readableField(field)}</span>) : <em>Δεν έχει επιβεβαιωθεί κατάλογος πεδίων.</em>}</div></div>
+      {related.map(item => <article className="source-dataset" key={item.id}><div className="source-dataset-heading"><strong>{item.name}</strong><span className={item.status === 'Ενεργό επίπεδο' || item.status.startsWith('Ελεγμένο') ? 'dataset-status verified' : 'dataset-status'}>{item.status}</span></div>
+        <p>{item.notes}</p><div className="source-field-list"><b>{source.status === 'Ενεργό επίπεδο' || source.status.startsWith('Ελεγμένο') ? 'Πεδία από ελεγμένο δείγμα' : 'Ενδεικτικά στοιχεία / πεδία υπό έλεγχο'}</b><div>{item.fields.length ? item.fields.map(field => <span key={field} title={field}>{readableField(field)}</span>) : <em>Δεν έχει επιβεβαιωθεί κατάλογος πεδίων.</em>}</div></div>
         <dl><div><dt>Για ποια θέση;</dt><dd>{item.grain}</dd></div><div><dt>Πότε;</dt><dd>{item.temporal}</dd></div><div><dt>Πώς συνδέεται;</dt><dd>{item.join}</dd></div></dl>
       </article>)}
     </section>
@@ -249,7 +249,7 @@ function SourceDetail({ source, related, onClose }: { source: SourceRecord; rela
 
 function DatasetCard({ dataset }: { dataset: DatasetRecord }) {
   return <details className="dataset-card">
-    <summary><span className="dataset-main"><strong>{dataset.name}</strong><small>{dataset.provider} · {dataset.grain}{dataset.count != null ? ` · ${dataset.count.toLocaleString('el-GR')} εγγραφές` : ''}</small></span><span className={dataset.status === 'Ελεγμένο σχήμα' || dataset.status === 'Ελεγμένο endpoint' || dataset.status === 'Ενεργό επίπεδο' ? 'dataset-status verified' : 'dataset-status'}>{dataset.status}</span><ChevronDown size={16}/></summary>
+    <summary><span className="dataset-main"><strong>{dataset.name}</strong><small>{dataset.provider} · {dataset.grain}{dataset.count != null ? ` · ${dataset.count.toLocaleString('el-GR')} εγγραφές` : ''}</small></span><span className={dataset.status.startsWith('Ελεγμένο') || dataset.status === 'Ενεργό επίπεδο' ? 'dataset-status verified' : 'dataset-status'}>{dataset.status}</span><ChevronDown size={16}/></summary>
     <div className="dataset-detail"><p>{dataset.notes}</p><div className="dataset-fields"><span>Βασικά πεδία</span><div>{dataset.fields.length ? dataset.fields.map(field => <code key={field}>{field}</code>) : <em>Δεν έχει επιβεβαιωθεί σχήμα δεδομένων.</em>}</div></div><div className="dataset-meta"><div><span>Μονάδα</span><strong>{dataset.grain}</strong></div><div><span>Πιθανή σύνδεση</span><strong>{dataset.join}</strong><small>{dataset.joinStatus}</small></div><div><span>Πρόσβαση / χρόνος</span><strong>{dataset.format} · {dataset.temporal}</strong></div><div><span>Άδεια / επανάχρηση</span><strong>{dataset.reuse}</strong></div><div><span>Έλεγχος</span><strong>{dataset.evidence}</strong></div></div><a href={dataset.layer} target="_blank" rel="noopener noreferrer">Πηγή / τεκμηρίωση <ExternalLink size={14}/></a></div>
   </details>;
 }
