@@ -25,7 +25,14 @@ api.kapavita.gr {
 		respond "Not found" 404
 	}
 	handle {
-		encode zstd gzip
+		encode zstd gzip {
+			match {
+				header Content-Type application/geo+json*
+				header Content-Type application/json*
+				header Content-Type application/javascript*
+				header Content-Type text/*
+			}
+		}
 		root * /home/dev/projects/kapavita/app/dist
 		try_files {path} /index.html
 		file_server
