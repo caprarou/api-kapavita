@@ -66,11 +66,59 @@ function seaSuggestion(lat:number, lon:number) {
   if (lat >= -60 && lat <= 70 && lon >= -80 && lon <= 10) return 'Ατλαντικός Ωκεανός';
   return null;
 }
+type RoutePoint = [number, number];
+function nauticalMiles(a: RoutePoint, b: RoutePoint) {
+  const rad = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * rad;
+  const dLon = (b[1] - a[1]) * rad;
+  const lat1 = a[0] * rad;
+  const lat2 = b[0] * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 3440.065 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+}
+function formatVoyageTime(hours: number) {
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} λεπτά`;
+  const whole = Math.floor(hours);
+  const minutes = Math.round((hours - whole) * 60);
+  return minutes ? `${whole} ώρες ${minutes}′` : `${whole} ώρες`;
+}
+function nearestRouteIndex(route: RoutePoint[], target: RoutePoint, from: number) {
+  let best = from;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let i = from; i < route.length; i += 1) {
+    const distance = nauticalMiles(route[i], target);
+    if (distance < bestDistance) { best = i; bestDistance = distance; }
+  }
+  return best;
+}
+function addTimedRouteSegments(
+  map: L.Map,
+  route: RoutePoint[],
+  checkpoints: RoutePoint[],
+  labels: string[],
+  color: string,
+  dashArray: string | undefined,
+  speedKnots: number,
+) {
+  if (route.length < 2 || checkpoints.length < 2) return;
+  let start = 0;
+  for (let i = 0; i < checkpoints.length - 1; i += 1) {
+    const end = nearestRouteIndex(route, checkpoints[i + 1], start + 1);
+    if (end <= start) continue;
+    const segment = route.slice(start, end + 1);
+    const distance = segment.slice(1).reduce((sum, point, index) => sum + nauticalMiles(segment[index], point), 0);
+    const hours = distance / Math.max(1, speedKnots);
+    L.polyline(segment, { color, weight: dashArray ? 3 : 4, opacity: 0.94, dashArray, lineCap: 'round' })
+      .addTo(map)
+      .bindTooltip(`${labels[i]}<br/><strong>${Math.round(distance)} ν.μ.</strong> · περίπου <strong>${formatVoyageTime(hours)}</strong>`, { sticky: true });
+    start = end;
+  }
+}
 function VesselMap({ position }: { position: Position | null }) {
   const element = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!element.current) return;
-    const destination: [number, number] = [-7.2353, 11.2889];
+    const destination: RoutePoint = [-7.2353, 11.2889];
     const map = L.map(element.current, { zoomControl: true }).setView(
       position ? [position.latitude, position.longitude] : [35, 17],
       position ? 6 : 3,
@@ -100,7 +148,7 @@ function VesselMap({ position }: { position: Position | null }) {
       }).addTo(map).bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(bearingToDestination)}°`);
     }
 
-    const anchors: Array<{ point: [number, number]; label: string }> = [
+    const anchors: Array<{ point: RoutePoint; label: string }> = [
       { point: [34.67, 33.04], label: 'Αναχώρηση · Λιμένας Λεμεσού' },
       { point: [36.51, 23.42], label: 'Πέρασμα · Νεάπολη Πελοποννήσου' },
     ];
@@ -126,37 +174,32 @@ function VesselMap({ position }: { position: Position | null }) {
     const controller = new AbortController();
     fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
-      .then(async data => {
+      .then(async () => {
         const routeData = position
-          ? await fetch(`/api/v1/vessel/seaviolet/route?latitude=${position.latitude}&longitude=${position.longitude}`, { signal: controller.signal, cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null)
+          ? await fetch(`/api/v1/vessel/seaviolet/route?latitude=${position.latitude}&longitude=${position.longitude}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
           : null;
-        const aisHistory: [number, number][] = (data?.points ?? [])
-          .filter((p: any) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)))
-          .map((p: any) => [Number(p.latitude), Number(p.longitude)] as [number, number]);
-
-        const routedCompleted = (routeData?.completed ?? [])
+        const routedCompleted: RoutePoint[] = (routeData?.completed ?? [])
           .filter((p: any) => Array.isArray(p) && p.length === 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
-          .map((p: any) => [Number(p[0]), Number(p[1])] as [number, number]);
-        // Only draw a route returned by the ocean-grid engine. No straight-line fallback is allowed.
-        const travelled: [number, number][] = routedCompleted;        if (travelled.length > 1) {
-          L.polyline(travelled, { color: '#147fba', weight: 4, opacity: 0.92, lineCap: 'round' }).addTo(map)
-            .bindTooltip(aisHistory.length > 1 ? 'Πραγματική διαδρομή AIS' : 'Διαδρομή που έχει διανυθεί · Λεμεσός → Νεάπολη → τρέχον στίγμα', { sticky: true });
-        }
-
-        const routedProjected = (routeData?.projected ?? [])
+          .map((p: any) => [Number(p[0]), Number(p[1])] as RoutePoint);
+        const routedProjected: RoutePoint[] = (routeData?.projected ?? [])
           .filter((p: any) => Array.isArray(p) && p.length === 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
-          .map((p: any) => [Number(p[0]), Number(p[1])] as [number, number]);
-        // The projected line also comes exclusively from the ocean-grid engine.
-        const projected: [number, number][] = routedProjected;        if (projected.length > 1) {
-          const dashedPart = projected.slice(0, -1);
-          if (dashedPart.length > 1) {
-            L.polyline(dashedPart, { color: '#d39a3b', weight: 3, opacity: 0.92, dashArray: '9 8', lineCap: 'round' }).addTo(map)
-              .bindTooltip('Προβλεπόμενη θαλάσσια πορεία προς KAOMBO NORTE', { sticky: true });
-          }
-          // Keep the final short segment solid so the route visibly touches the exact destination marker.
-          L.polyline([projected[projected.length - 2], destination], { color: '#d39a3b', weight: 4, opacity: 0.98, lineCap: 'round' }).addTo(map);
+          .map((p: any) => [Number(p[0]), Number(p[1])] as RoutePoint);
+        const speed = Number(position?.speedKnots);
+        const speedKnots = Number.isFinite(speed) && speed > 1 ? speed : 12;
+        const current: RoutePoint | null = position ? [position.latitude, position.longitude] : null;
+        if (routedCompleted.length > 1 && current) {
+          addTimedRouteSegments(map, routedCompleted, [[34.67, 33.04], [36.51, 23.42], current], ['Λεμεσός → Νεάπολη', 'Νεάπολη → τρέχον στίγμα'], '#147fba', undefined, speedKnots);
         }
-        const all: [number, number][] = travelled.length > 1 ? [...travelled, ...projected] : projected;
+        if (routedProjected.length > 1 && current) {
+          const projectedCheckpoints: RoutePoint[] = [current, [35.9, -5.5], [20, -14], destination];
+          addTimedRouteSegments(map, routedProjected, projectedCheckpoints, ['Τρέχον στίγμα → Γιβραλτάρ', 'Γιβραλτάρ → Ατλαντικός', 'Ατλαντικός → KAOMBO NORTE'], '#d39a3b', '9 8', speedKnots);
+          const last = routedProjected.length - 1;
+          const finalDistance = nauticalMiles(routedProjected[last - 1], routedProjected[last]);
+          L.polyline([routedProjected[last - 1], routedProjected[last]], { color: '#d39a3b', weight: 4, opacity: 0.98, lineCap: 'round' })
+            .addTo(map)
+            .bindTooltip(`Τελικό τμήμα προς KAOMBO NORTE<br/><strong>${Math.round(finalDistance)} ν.μ.</strong> · περίπου <strong>${formatVoyageTime(finalDistance / Math.max(1, speedKnots))}</strong>`, { sticky: true });
+        }
+        const all: RoutePoint[] = routedCompleted.length > 1 ? [...routedCompleted, ...routedProjected] : routedProjected;
         if (all.length > 1) map.fitBounds(L.latLngBounds(all).pad(0.12));
       })
       .catch(() => {});
@@ -231,6 +274,8 @@ export function Seaviolet() {
     </section>{vessel}</div><aside className="sea-side"><div className="sea-side-card"><ShieldCheck size={21}/><h3>Ο χαιρετισμός δεν είναι AIS</h3><p>Η επιλογή θάλασσας περιγράφει το μήνυμα, όχι την επαληθευμένη θέση του πλοίου. Ο χάρτης κρατά τη δική του πηγή και ώρα.</p></div><div className="sea-side-card"><Anchor size={21}/><h3>Ακριβής ώρα πλοίου</h3><p>Το πλήρωμα μπορεί να επιλέξει τη ζώνη UTC που ακολουθεί στο πλοίο. Η επιλογή αποθηκεύεται μόνο σε αυτή τη συσκευή.</p></div></aside></div>}
   </div>;
 }
+
+
 
 
 
