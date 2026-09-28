@@ -3,9 +3,10 @@ export const featureLabels: Record<string,string> = {
  communities:'Δημοτικές κοινότητες · 2021', population:'Πληθυσμός · απογραφή 2021',
  airports:'Αεροδρόμια', aircraft:'Αεροσκάφη · OpenSky',
  marine:'Θαλάσσιες περιοχές', weather:'Καιρός · πρόγνωση',
- airQuality:'Ποιότητα αέρα · εκτίμηση', eeaAir:'Μετρήσεις PM2.5 σταθμών EEA', earthquakes:'Σεισμοί · USGS', catalog:'Πηγές δεδομένων',
+ airQuality:'Ποιότητα αέρα · εκτίμηση', eeaAir:'Μετρήσεις PM2.5 σταθμών EEA', copernicus:'Copernicus · Sentinel-2 εικόνες', earthquakes:'Σεισμοί · USGS', catalog:'Πηγές δεδομένων',
  seaviolet:'SEAVIOLET · δημόσια προβολή',
 };
 export type Flags = Record<keyof typeof featureLabels, boolean>;
 export const defaultFlags: Flags = Object.fromEntries(Object.keys(featureLabels).map(k=>[k,k!=='seaviolet'])) as Flags;
+
 
