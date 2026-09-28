@@ -205,6 +205,16 @@ def vessel_history(path):
   rows=db.execute("SELECT observed_at,ST_Y(location),ST_X(location),speed_knots,course,heading,destination,eta,source_id FROM observations.vessel_positions WHERE mmsi=248554000 AND observed_at >= now() - (%s || ' hours')::interval ORDER BY observed_at",(hours,)).fetchall()
  return {'mmsi':248554000,'hours':hours,'points':[{'observedAt':r[0].isoformat(),'latitude':r[1],'longitude':r[2],'speedKnots':r[3],'course':r[4],'heading':r[5],'destination':r[6],'eta':r[7].isoformat() if r[7] else None,'source':r[8]} for r in rows]}
 
+def copernicus_search(path):
+ env=os.environ
+ client=env.get('CDSE_CLIENT_ID'); secret=env.get('CDSE_CLIENT_SECRET')
+ if not client or not secret: raise RuntimeError('Copernicus credentials unavailable')
+ import urllib.request, urllib.parse
+ token_req=urllib.request.Request('https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token',data=urllib.parse.urlencode({'grant_type':'client_credentials','client_id':client,'client_secret':secret}).encode(),headers={'Content-Type':'application/x-www-form-urlencoded'})
+ token=json.load(urllib.request.urlopen(token_req,timeout=20))['access_token']
+ req=urllib.request.Request('https://catalogue.dataspace.copernicus.eu/stac/search?collections=sentinel-2-l2a&bbox=19,34,30,42&limit=10',headers={'Authorization':'Bearer '+token})
+ data=json.load(urllib.request.urlopen(req,timeout=30))
+ return {'features':[{'id':f.get('id'),'datetime':f.get('properties',{}).get('datetime'),'cloudCover':f.get('properties',{}).get('eo:cloud_cover'),'assets':list(f.get('assets',{}))} for f in data.get('features',[])]}
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,format,*args):
   print('%s %s'%(self.address_string(),format%args),flush=True)
@@ -233,6 +243,9 @@ class Handler(BaseHTTPRequestHandler):
    if path=='/api/v1/vessel/seaviolet/history':
     try:self.reply(200,vessel_history(self.path))
     except Exception as error:self.reply(503,{'error':'Το ιστορικό AIS δεν είναι διαθέσιμο: '+str(error)[:120]})
+   elif path=='/api/v1/copernicus/sentinel2':
+    try:self.reply(200,copernicus_search(self.path))
+    except Exception as error:self.reply(503,{'error':'Copernicus Sentinel-2 unavailable: '+str(error)[:120]})
    elif path=='/api/v1/geo/areas':
     try:self.reply(200,public_geojson(self.path))
     except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)})
@@ -377,4 +390,6 @@ if __name__=='__main__':
  else:
   init()
   ThreadingHTTPServer(('127.0.0.1',int(os.environ.get('KAPAVITA_ADMIN_PORT','8787'))),Handler).serve_forever()
+
+
 
