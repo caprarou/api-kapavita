@@ -23,7 +23,7 @@ function connect() {
   if (stopped) return;
   const socket = new WebSocket('wss://stream.aisstream.io/v0/stream', { perMessageDeflate:true });
   socket.on('open', () => socket.send(JSON.stringify({
-    APIKey:key, BoundingBoxes:[[[-89.99,-179.99],[89.99,179.99]]],
+    APIKey:key, BoundingBoxes:[[[89.99,-179.99],[-89.99,179.99]]],
     FiltersShipMMSI:['248554000'], FilterMessageTypes:['PositionReport'],
   })));
   socket.on('message', async raw => {
