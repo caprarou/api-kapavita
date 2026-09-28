@@ -10,6 +10,7 @@ type Position = { mmsi: number; latitude: number; longitude: number; observedAt:
 type VesselFields = Record<string, boolean>;
 const defaultVesselFields: VesselFields = { identity:true, technical:true, status:true, destination:true, course:true, clock:true, position:true, route:true, stops:true, source:true };
 const templates = ['Καλημέρα από…', 'Χαιρετισμούς από…', 'Όλα καλά από…', 'Καλή θάλασσα από…', 'Μια καληνύχτα από…', 'Με τον νου στο σπίτι από…', 'Στέλνω έναν χαιρετισμό από…'];
+const seaQuotes = [{text:'Στην πλώρη ανοίγει ο ορίζοντας· κράτα ήσυχο το τιμόνι.',author:'Ναυτική φράση'},{text:'Ο πόντος δεν υπόσχεται δρόμο· ζητά να τον διαβάσεις.',author:'Ελεύθερη ναυτική απόδοση'},{text:'Όταν πέσει η νύχτα, η γέφυρα μετρά χρόνο, φώτα και σιωπή.',author:'Ναυτική φράση'},{text:'Το ταξίδι συνεχίζεται με μικρές διορθώσεις και καθαρό βλέμμα.',author:'Ελεύθερη απόδοση σε ύφος Ν. Καββαδία'},{text:'Η θάλασσα ανοίγει χώρο σε όποιον ξέρει να περιμένει.',author:'Ναυτική φράση'},{text:'Ἐπὶ οἴνοπα πόντον',author:'Όμηρος · σύντομο δημόσιο κείμενο'}];
 type Region = { name: string; phrase: string };
 const regionGroups: { label: string; entries: Region[] }[] = [
   { label:'Ελλάδα & ανατολική Μεσόγειος', entries:[
@@ -256,6 +257,7 @@ export function Seaviolet() {
   const stale = ageHours > 24;
   const ageLabel = Number.isFinite(ageHours) ? (() => { const minutes = Math.max(0, Math.floor(ageHours * 60)); if (minutes < 2) return 'μόλις τώρα'; if (minutes < 60) return `πριν ${minutes} λεπτά`; const hours = Math.floor(minutes / 60); const rest = minutes % 60; return rest ? `πριν ${hours} ώρες και ${rest} λεπτά` : `πριν ${hours} ώρες`; })() : 'δεν έχει ληφθεί ακόμη';
   const exactPositionTime = position ? dateGreece(new Date(position.observedAt)) : null;
+  const seaQuote = seaQuotes[Math.floor(Date.now() / (8 * 60 * 60 * 1000)) % seaQuotes.length];
   const safeRegion = phrases[region] ?? '';
   const greetingText = custom.trim() || (safeRegion ? template.replace('…', ' '+safeRegion) : template.replace(' από…','').replace('…',''));
   const chooseContext = (next:Context) => { setContext(next); setTemplate(recommended[next]); setCustom(''); };
@@ -288,7 +290,7 @@ export function Seaviolet() {
     {view==='family' ? <div className="sea-layout"><div className="sea-main">
       {notice && <div className="sea-notice" role="status">Ο χαιρετισμός εμφανίστηκε μόνο σε αυτή τη συσκευή. Δεν έγινε αποστολή.<button aria-label="Κλείσιμο ενημέρωσης" onClick={()=>setNotice(false)}><X size={15}/></button></div>}
       {vessel}
-      <section className="sea-card sea-message"><div className="sea-card-heading"><span className="sea-card-icon sea-heart"><Heart size={19}/></span><div><span className="sea-eyebrow">ΜΑΣ ΕΣΤΕΙΛΕ ΧΑΙΡΕΤΙΣΜΟ</span><h2>Μια κουβέντα από το πλήρωμα</h2></div></div>
+      <section className="sea-card sea-message"><div className="sea-card-heading"><span className="sea-card-icon sea-heart"><Heart size={19}/></span><div><span className="sea-eyebrow">ΜΑΣ ΕΣΤΕΙΛΕ ΧΑΙΡΕΤΙΣΜΟ</span><h2>Μια κουβέντα από τον Λιάκο</h2></div></div><div className="sea-literary-quote"><span className="sea-eyebrow">ΛΟΓΙΑ ΤΗΣ ΘΑΛΑΣΣΑΣ</span><p>«{seaQuote.text}»</p><small>{seaQuote.author} · αλλάζει κάθε 8 ώρες</small></div>
       {history.length ? <><p className="sea-greeting">«{history[0].text}»</p><div className="sea-greeting-meta"><Clock3 size={14}/> {dateGreece(history[0].time)} · ώρα Ελλάδας · {history[0].area}</div></> : <div className="sea-empty"><MessageCircle size={26}/><strong>Δεν υπάρχει προσωπικός χαιρετισμός.</strong><span>Δοκίμασε την πλευρά του πληρώματος στην ίδια συσκευή. Η ώρα του χαιρετισμού είναι ξεχωριστή από την ώρα του τελευταίου στίγματος.</span></div>}</section>
       <div className="sea-history"><h3>Ιστορικό χαιρετισμών στην προεπισκόπηση</h3>{history.length ? history.map((item,index)=><div key={index}><span>«{item.text}»</span><small>{dateGreece(item.time)} · ώρα Ελλάδας</small></div>) : <p>Δεν υπάρχουν ακόμη χαιρετισμοί.</p>}</div>
     </div><aside className="sea-side"><div className="sea-side-card"><MapPin size={21}/><h3>Πραγματική θέση πλοίου</h3><p>Η ένδειξη προέρχεται μόνο από το AIS και δείχνει το τελευταίο στίγμα, την ώρα λήψης και την πορεία όταν υπάρχουν διαθέσιμα δεδομένα.</p></div><div className="sea-side-card"><ShieldCheck size={21}/><h3>Τοπικός χαιρετισμός</h3><p>Η οικογένεια και το πλήρωμα εναλλάσσονται στον ίδιο browser. Το μήνυμα μένει τοπικά και δεν αποστέλλεται στον server.</p></div><button className="sea-switch" onClick={()=>setView('crew')}>Πλευρά πληρώματος <ArrowRight size={16}/></button></aside></div>
