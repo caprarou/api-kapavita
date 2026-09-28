@@ -23,11 +23,12 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 DB = Path(os.environ.get('KAPAVITA_ADMIN_DB', '/home/dev/.local/share/kapavita/admin.sqlite3'))
 VESSEL = ROOT / 'app/dist/data/seaviolet-last-position.json'
+EEA_AIR = Path(os.environ.get('KAPAVITA_EEA_CACHE', '/home/dev/.local/share/kapavita/eea-stations.json'))
 ORIGIN = os.environ.get('KAPAVITA_ORIGIN', 'https://api.kapavita.gr')
 FEATURES = {
  'regions': True, 'municipalities': True, 'communities': True,
  'population': True, 'airports': True, 'aircraft': True, 'marine': True,
- 'weather': True, 'airQuality': True, 'seaviolet': False, 'catalog': True,
+ 'weather': True, 'airQuality': True, 'eeaAir': True, 'seaviolet': False, 'catalog': True,
 }
 GRANTS = {'seaviolet:view'}
 ATTEMPTS = {}
@@ -146,6 +147,13 @@ class Handler(BaseHTTPRequestHandler):
     self.reply(200,{'features':public,'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
    elif path=='/api/session':
     self.reply(200,{'user':user_info(user) if user else None,'csrf':user['csrf'] if user else None})
+   elif path=='/api/v1/air/eea':
+    if not flags(db).get('eeaAir', False):self.reply(403,{'error':'Το επίπεδο σταθμών είναι κλειστό.'});return
+    try:
+     data=json.loads(EEA_AIR.read_text())
+     if data.get('source')!='EEA E2a' or data.get('pollutant')!='PM2.5' or not isinstance(data.get('readings'),list):raise ValueError('Invalid station cache')
+     self.reply(200,data)
+    except (OSError,ValueError,TypeError):self.reply(503,{'error':'Δεν υπάρχουν ακόμη διαθέσιμες μετρήσεις σταθμών.'})
    elif path=='/api/v1/vessel/seaviolet':
     if not (flags(db)['seaviolet'] or user and (user['role']=='admin' or 'seaviolet:view' in grants(user))): self.reply(403,{'error':'Δεν έχεις πρόσβαση στο πλοίο.'});return
     try:

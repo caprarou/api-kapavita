@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh KapaVita EEA measurements every three hours
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3h
+Persistent=true
+Unit=kapavita-eea.service
+
+[Install]
+WantedBy=timers.target

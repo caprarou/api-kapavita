@@ -2,17 +2,20 @@ import { useEffect } from 'react';
 import L from 'leaflet';
 import type { Map as LeafletMap } from 'leaflet';
 
-export type OverlayKey = 'population' | 'airports' | 'aircraft' | 'marine' | 'weather' | 'airQuality';
+export type OverlayKey = 'population' | 'airports' | 'aircraft' | 'marine' | 'weather' | 'airQuality' | 'eeaAir';
 type Props = {
   mapRef: React.MutableRefObject<LeafletMap | null>;
   active: Record<OverlayKey, boolean>;
   onArea: (name: string, detail: string) => void;
   onPlane: (plane: Plane & { snapshotTime: number }) => void;
   onAirQuality: (reading: AirReading) => void;
+  onEEA: (reading: EEAReading | null) => void;
   onStatus: (key: OverlayKey, status: string) => void;
 };
 type Airport = { name: string; ident: string; iata: string; lat: number; lon: number; municipality: string };
 export type AirReading = { city: string; time: string; aqi: number; pm25: number | null; pm10: number | null };
+export type EEAReading = { stationId: string; name: string; latitude: number; longitude: number; value: number; observedAt: string; unit: string; validity: number; verification: number };
+export const eeaReadingFresh = (reading: EEAReading, now = Date.now()) => { const age = now - Date.parse(reading.observedAt); return reading.unit === 'µg/m³' && [1, 2, 3].includes(reading.validity) && Number.isFinite(reading.value) && reading.value >= 0 && Number.isFinite(reading.latitude) && Number.isFinite(reading.longitude) && reading.latitude >= 34 && reading.latitude <= 42 && reading.longitude >= 18 && reading.longitude <= 30 && Number.isFinite(age) && age >= 0 && age <= 24 * 3600_000; };
 export const airQualityBand = (value: number) => value <= 20 ? { name: 'Καλή', color: '#267d65', message: 'Η ποιότητα του αέρα είναι καλή για τις συνήθεις υπαίθριες δραστηριότητες.' } : value <= 40 ? { name: 'Ικανοποιητική', color: '#459a69', message: 'Οι περισσότεροι μπορούν να συνεχίσουν κανονικά τις δραστηριότητές τους.' } : value <= 60 ? { name: 'Μέτρια', color: '#ae832a', message: 'Αν έχεις αναπνευστική ευαισθησία, λάβε υπόψη σου την ποιότητα του αέρα πριν από έντονη άσκηση έξω.' } : value <= 80 ? { name: 'Κακή', color: '#c56c33', message: 'Αν είσαι ευαίσθητος στην ατμοσφαιρική ρύπανση, περιόρισε την έντονη άσκηση έξω.' } : value <= 100 ? { name: 'Πολύ κακή', color: '#ad4c63', message: 'Προτίμησε δραστηριότητες σε εσωτερικό χώρο, ιδίως αν ανήκεις σε ευαίσθητη ομάδα.' } : { name: 'Εξαιρετικά κακή', color: '#713c82', message: 'Περιόρισε τις υπαίθριες δραστηριότητες και ακολούθησε τις τοπικές οδηγίες.' };
 export type Plane = { icao24: string; callsign: string; originCountry: string; latitude: number; longitude: number; lastContact: number; altitude: number | null; onGround: boolean; baroAltitude: number | null; velocity: number | null; heading: number | null; verticalRate: number | null; squawk: string | null; positionSource: number | null };
 const cities = [
@@ -46,7 +49,7 @@ const planeIcon = (heading: number | null, greek: boolean) => L.divIcon({ classN
 const circle = (point: [number, number], color: string, radius = 6) =>
   L.circleMarker(point, { radius, color: '#ffffff', weight: 1.5, fillColor: color, fillOpacity: .92 });
 
-export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onStatus }: Props) {
+export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA, onStatus }: Props) {
   useEffect(() => {
     if (!active.population || !mapRef.current) return;
     const map = mapRef.current; const controller = new AbortController(); let layer: L.GeoJSON | undefined;
@@ -170,5 +173,42 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onSta
     }).catch(error => { if (!controller.signal.aborted) onStatus('airQuality', 'Η υπηρεσία αέρα δεν αποκρίνεται'); console.error(error); });
     return () => { controller.abort(); pointRequest?.abort(); map.off('click', handleMapClick); map.removeLayer(layer); };
   }, [mapRef, active.airQuality, onAirQuality, onStatus]);
+  useEffect(() => {
+    if (!active.eeaAir || !mapRef.current) return;
+    const map = mapRef.current; const layer = L.layerGroup().addTo(map);
+    let controller: AbortController | null = null;
+    const load = async () => {
+      controller?.abort(); const request = new AbortController(); controller = request;
+      layer.clearLayers(); onEEA(null);
+      try {
+        const data = await checkedFetch('/api/v1/air/eea', request.signal) as { readings: EEAReading[]; totalPoints: number; invalidPoints: number; collectedAt: string };
+        if (request.signal.aborted) return;
+        if (!Array.isArray(data.readings)) throw new Error('Invalid EEA response');
+        layer.clearLayers();
+        let visible = 0;
+        for (const reading of data.readings) {
+          if (!eeaReadingFresh(reading)) continue;
+          const value = Math.round(reading.value).toLocaleString('el-GR');
+          const marker = L.marker([reading.latitude, reading.longitude], {
+            icon: L.divIcon({ className: 'eea-station-icon', html: '<span>' + value + '</span>', iconSize: [38, 38], iconAnchor: [19, 19] }),
+            zIndexOffset: 1000, title: reading.name + ' - PM2.5', alt: reading.name + ' - PM2.5',
+          });
+          const tooltip = document.createElement('span');
+          tooltip.textContent = reading.name + ' · PM2.5: ' + reading.value.toLocaleString('el-GR') + ' µg/m³ · μέτρηση σταθμού';
+          marker.bindTooltip(tooltip).on('click', event => { L.DomEvent.stopPropagation(event); onEEA(reading); }).addTo(layer);
+          visible++;
+        }
+        onStatus('eeaAir', visible ? `${visible} σταθμοί PM2.5 · έγκυρες μετρήσεις έως 24ωρο · EEA` : 'Δεν υπάρχουν μετρήσεις PM2.5 τελευταίου 24ώρου · EEA');
+        if (!visible) onEEA(null);
+      } catch (error) {
+        if (!request.signal.aborted) onStatus('eeaAir', 'Οι μετρήσεις EEA δεν είναι διαθέσιμες');
+        if (error instanceof Error && error.name !== 'AbortError') console.error('EEA:', error);
+      }
+    };
+    onStatus('eeaAir', 'Φόρτωση πραγματικών μετρήσεων…');
+    void load();
+    const interval = window.setInterval(() => { void load(); }, 15 * 60_000);
+    return () => { controller?.abort(); window.clearInterval(interval); map.removeLayer(layer); };
+  }, [mapRef, active.eeaAir, onEEA, onStatus]);
   return null;
 }
