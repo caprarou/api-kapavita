@@ -252,15 +252,17 @@ export function Seaviolet() {
     return () => { alive = false; window.clearInterval(t); };
   }, []);
   const suggestion = position ? seaSuggestion(position.latitude,position.longitude) : null;
-  const ageHours = position ? (now.getTime()-new Date(position.observedAt).getTime())/3600000 : Infinity;
+  const ageHours = position ? Math.max(0, (now.getTime()-new Date(position.observedAt).getTime())/3600000) : Infinity;
   const stale = ageHours > 24;
+  const ageLabel = Number.isFinite(ageHours) ? (() => { const minutes = Math.max(0, Math.floor(ageHours * 60)); if (minutes < 2) return 'μόλις τώρα'; if (minutes < 60) return `πριν ${minutes} λεπτά`; const hours = Math.floor(minutes / 60); const rest = minutes % 60; return rest ? `πριν ${hours} ώρες και ${rest} λεπτά` : `πριν ${hours} ώρες`; })() : 'δεν έχει ληφθεί ακόμη';
+  const exactPositionTime = position ? dateGreece(new Date(position.observedAt)) : null;
   const safeRegion = phrases[region] ?? '';
   const greetingText = custom.trim() || (safeRegion ? template.replace('…', ' '+safeRegion) : template.replace(' από…','').replace('…',''));
   const chooseContext = (next:Context) => { setContext(next); setTemplate(recommended[next]); setCustom(''); };
   const preview = () => { setHistory(items => [{text:greetingText,area:region,time:new Date()},...items].slice(0,5)); setNotice(true); setView('family'); };
   const shipClock = offset === null ? 'Επίλεξε UTC ζώνη του πλοίου' : clock(now,offset)+' (UTC'+(offset>=0?'+':'')+offset+')';
   const difference = offset === null ? 'Απαιτείται η ζώνη ώρας του πλοίου' : (offset-greeceOffset(now) === 0 ? 'Ίδια ώρα με Ελλάδα' : Math.abs(offset-greeceOffset(now))+' ώρες '+(offset>greeceOffset(now)?'μπροστά':'πίσω')+' από Ελλάδα');
-  const vessel = <section className="sea-card sea-vessel"><div className="sea-card-heading"><span className="sea-card-icon"><Ship size={19}/></span><div><span className="sea-eyebrow">ΤΙ ΚΑΝΕΙ ΤΟ ΠΛΟΙΟ</span><h2>SEAVIOLET</h2></div><span className="sea-availability">{position ? (stale ? 'Παλιό στίγμα' : 'Τελευταίο στίγμα') : 'Αναμονή στίγματος AIS'}</span></div>
+  const vessel = <section className="sea-card sea-vessel"><div className="sea-card-heading"><span className="sea-card-icon"><Ship size={19}/></span><div><span className="sea-eyebrow">ΤΙ ΚΑΝΕΙ ΤΟ ΠΛΟΙΟ</span><h2>SEAVIOLET</h2></div><span className="sea-availability">{position ? `${ageLabel}${stale ? ' · παλιό' : ''}` : 'Αναμονή στίγματος AIS'}</span></div>
     {vesselFields.identity && <div className="sea-identity">Δεξαμενόπλοιο αργού πετρελαίου · σημαία Μάλτας · κατασκευή 2018</div>}
     {vesselFields.technical && <div className="sea-identity">IMO 9790983 · MMSI 248554000 · διακριτικό 9HA4701</div>}
     <div className="sea-vessel-grid">
@@ -270,7 +272,7 @@ export function Seaviolet() {
       {vesselFields.clock && <><div><small>Ώρα Ελλάδας τώρα</small><strong>{clock(now,greeceOffset(now))}</strong></div><div><small>Ώρα πλοίου τώρα</small><strong>{shipClock}</strong><small>{difference}</small></div></>}
     </div>
     {vesselFields.clock && <><label className="sea-label" htmlFor="sea-timezone">Ζώνη ώρας που ακολουθεί το πλοίο (ορίζεται από το πλήρωμα)</label><select id="sea-timezone" className="sea-input" value={offset ?? ''} onChange={e => { const next = e.target.value; setOffset(next === '' ? null : Number(next)); if (next === '') window.localStorage.removeItem('liakos-ship-utc-offset'); else window.localStorage.setItem('liakos-ship-utc-offset',next); }}><option value="">Δεν έχει επιβεβαιωθεί</option>{Array.from({length:27},(_,i)=>i-12).map(v=><option value={v} key={v}>UTC{v>=0?'+':''}{v}</option>)}</select></>}
-    {vesselFields.position && <><h3 className="sea-map-title">{position ? 'Τελευταίο στίγμα από τη δική μας ροή' : 'Εξωτερική ενημέρωση πλοίου'}</h3>{position ? <VesselMap position={position} showRoute={vesselFields.route !== false}/> : <ExternalVesselPosition/>}</>}
+    {vesselFields.position && <><h3 className="sea-map-title">{position ? `Στίγμα ${ageLabel} · ${exactPositionTime}` : 'Εξωτερική ενημέρωση πλοίου'}</h3>{position ? <VesselMap position={position} showRoute={vesselFields.route !== false}/> : <ExternalVesselPosition/>}</>}
     {vesselFields.stops && <p className="sea-explain">Περάσματα και στάσεις: Λιμένας Λεμεσού → Νεάπολη Πελοποννήσου → δηλωμένος προορισμός KAOMBO NORTE.</p>}
     {vesselFields.source && <p className="sea-explain"><Radio size={15}/>{position ? <>Καταγράφηκε {dateGreece(new Date(position.observedAt))} (ώρα Ελλάδας) · πηγή: {position.source}. {stale && 'Το στίγμα είναι παλιό και δεν δείχνει τη σημερινή θέση.'}</> : <>Δεν έχουμε παραλάβει ακόμη έγκυρη αναφορά θέσης AIS για το πλοίο. Η εξωτερική σελίδα του VesselFinder μπορεί να εμφανίζει νεότερα δεδομένα από άλλη πηγή. <a href={vesselUrl} target="_blank" rel="noreferrer">Δες το SEAVIOLET στο MarineTraffic</a> για την τελευταία αναφορά της υπηρεσίας.</>}</p>}
     {vesselFields.clock && <p className="sea-explain">Η ώρα πλοίου είναι η επιλεγμένη ζώνη του πληρώματος, όχι εκτίμηση από τη θέση. Τα σταθερά χαρακτηριστικά έχουν ελεγχθεί σε μητρώο πλοίων.</p>}
@@ -281,7 +283,7 @@ export function Seaviolet() {
   const dailySeaEvents = dailySeaEventSets[dayIndex % dailySeaEventSets.length];
   const lesson = dailyLessons[dayIndex % dailyLessons.length];
   const dailyRegion = position ? (seaSuggestion(position.latitude, position.longitude) ?? 'θαλάσσια περιοχή χωρίς ασφαλή ονομασία') : 'αναμονή έγκυρου στίγματος AIS';
-  return <div className="sea-page"><div className="sea-header"><div><span className="sea-kicker">SEAVIOLET · ΟΙΚΟΓΕΝΕΙΑ & ΠΛΗΡΩΜΑ</span><h1>Liakos εν πλω</h1><p>Το SEAVIOLET και ένας προσωπικός χαιρετισμός, στην ίδια συσκευή.</p></div><span className="sea-demo">Τοπική προεπισκόπηση χαιρετισμού</span></div>
+  return <div className="sea-page"><div className="sea-header"><div><span className="sea-kicker">SEAVIOLET · ΟΙΚΟΓΕΝΕΙΑ & ΠΛΗΡΩΜΑ</span><h1>Liakos εν πλω</h1><p>Το SEAVIOLET και ένας προσωπικός χαιρετισμός, στην ίδια συσκευή.</p></div><div className="sea-header-meta"><span className="sea-demo">Τοπική προεπισκόπηση χαιρετισμού</span><div className="sea-last-fix" role="status"><Radio size={16}/><div><strong>{position ? `Το τελευταίο στίγμα ήταν ${ageLabel}` : 'Δεν έχει ληφθεί ακόμη έγκυρο στίγμα AIS'}</strong><span>{exactPositionTime ? `Ακριβής ώρα λήψης: ${exactPositionTime} · ${position?.source}` : 'Η ακριβής ώρα θα εμφανιστεί με την πρώτη έγκυρη καταγραφή.'}</span></div></div></div></div>
     <div className="sea-tabs" role="tablist" aria-label="Προβολή Liakos εν πλω"><button role="tab" aria-selected={view==='family'} className={view==='family'?'selected':''} onClick={()=>setView('family')}><Heart size={17}/> Οικογένεια</button><button role="tab" aria-selected={view==='crew'} className={view==='crew'?'selected':''} onClick={()=>setView('crew')}><Ship size={17}/> Πλήρωμα</button></div>
     {view==='family' ? <div className="sea-layout"><div className="sea-main">
       {notice && <div className="sea-notice" role="status">Ο χαιρετισμός εμφανίστηκε μόνο σε αυτή τη συσκευή. Δεν έγινε αποστολή.<button aria-label="Κλείσιμο ενημέρωσης" onClick={()=>setNotice(false)}><X size={15}/></button></div>}
