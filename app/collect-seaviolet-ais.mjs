@@ -1,5 +1,7 @@
 import WebSocket from 'ws';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { dirname, resolve } from 'node:path';
 
 // Run server-side only. Never expose AISSTREAM_API_KEY to the browser.
@@ -10,6 +12,7 @@ if (!key) {
 }
 const myShipTrackingKey = process.env.MYSHIPTRACKING_API_KEY;
 const kplerToken = process.env.KPLER_API_TOKEN;
+const execFileAsync = promisify(execFile);
 
 const mmsi = 248554000;
 const file = resolve(process.env.AIS_POSITION_FILE || new URL('./dist/data/seaviolet-last-position.json', import.meta.url).pathname);
@@ -62,6 +65,12 @@ async function writePosition(position) {
   await rename(file + '.tmp', file);
 }
 
+async function saveHistory(position, raw = {}) {
+  const q = value => value === null || value === undefined ? 'NULL' : "'" + String(value).replace(/'/g, "''") + "'";
+  const rawJson = JSON.stringify(raw).replace(/'/g, "''");
+  const sql = `INSERT INTO observations.vessels (mmsi, name, properties, updated_at) VALUES (${position.mmsi}, 'SEAVIOLET', '${rawJson}'::jsonb, now()) ON CONFLICT (mmsi) DO UPDATE SET properties=observations.vessels.properties || EXCLUDED.properties, updated_at=now(); INSERT INTO observations.vessel_positions (mmsi, observed_at, source_id, location, speed_knots, destination, raw) VALUES (${position.mmsi}, ${q(position.observedAt)}::timestamptz, 'aisstream', ST_SetSRID(ST_Point(${position.longitude},${position.latitude}),4326), ${position.speedKnots ?? 'NULL'}, ${q(position.destination)}, '${rawJson}'::jsonb) ON CONFLICT (mmsi, observed_at, source_id) DO NOTHING;`;
+  try { await execFileAsync('psql', ['--dbname=kapavita', '--set=ON_ERROR_STOP=1', '--command', sql]); } catch (error) { console.error('AIS history database write failed:', error.message); }
+}
 function save(position) {
   lastPosition = position;
   saveQueue = saveQueue.catch(() => {}).then(() => writePosition(position));
@@ -315,3 +324,4 @@ process.on('SIGINT', stop);
 await restore();
 scheduleFallback();
 connect();
+
