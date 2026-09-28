@@ -1064,5 +1064,52 @@
     "reuse": "Έλεγχος ειδικής άδειας πριν από δημόσια αναδημοσίευση",
     "evidence": "Επίσημη τεκμηρίωση προϊόντος · 28/09/2026",
     "notes": "Ωριαία παγκόσμια επανανάλυση ιστορικού καιρού από το 1940· δεν είναι επιτόπια μέτρηση"
+  },
+  {
+    "id": "usgs-earthquake-events",
+    "name": "Σεισμοί τελευταίου 24ώρου",
+    "layer": "earthquakes",
+    "count": null,
+    "grain": "event",
+    "fields": [
+      "magnitude",
+      "depth",
+      "place",
+      "time",
+      "coordinates"
+    ],
+    "join": "coordinates",
+    "joinStatus": "ready",
+    "status": "active",
+    "notes": "USGS GeoJSON feed",
+    "sourceId": "usgs-earthquakes",
+    "provider": "USGS",
+    "format": "GeoJSON",
+    "temporal": "last 24 hours",
+    "reuse": "public domain",
+    "evidence": "official API"
+  },
+  {
+    "id": "openaq-greece-stations",
+    "name": "Σταθμοί ποιότητας αέρα",
+    "layer": "openaq",
+    "count": null,
+    "grain": "station",
+    "fields": [
+      "name",
+      "coordinates",
+      "city",
+      "country"
+    ],
+    "join": "coordinates",
+    "joinStatus": "ready",
+    "status": "active",
+    "notes": "OpenAQ v3 locations",
+    "sourceId": "openaq",
+    "provider": "OpenAQ",
+    "format": "JSON",
+    "temporal": "current",
+    "reuse": "provider-specific",
+    "evidence": "official API"
   }
 ]
