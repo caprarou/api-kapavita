@@ -8,8 +8,40 @@ type Context = 'Εν πλω' | 'Αγκυροβολημένο' | 'Άφιξη' | '
 type Greeting = { text: string; area: string; time: Date };
 type Position = { mmsi: number; latitude: number; longitude: number; observedAt: string; source: string; speedKnots?: number; destination?: string; eta?: string };
 const templates = ['Καλημέρα από…', 'Χαιρετισμούς από…', 'Όλα καλά από…', 'Καλή θάλασσα από…', 'Μια καληνύχτα από…', 'Με τον νου στο σπίτι από…', 'Στέλνω έναν χαιρετισμό από…'];
-const regions = ['Χωρίς κοινοποίηση περιοχής', 'Αιγαίο', 'Ιόνιο', 'Περιοχή της Κρήτης', 'Μεσόγειος', 'Ατλαντικός Ωκεανός', 'Μαύρη Θάλασσα', 'Ανοιχτή θάλασσα'];
-const phrases: Record<string,string> = { Αιγαίο:'το Αιγαίο', Ιόνιο:'το Ιόνιο', 'Περιοχή της Κρήτης':'την περιοχή της Κρήτης', Μεσόγειος:'τη Μεσόγειο', 'Ατλαντικός Ωκεανός':'τον Ατλαντικό Ωκεανό', 'Μαύρη Θάλασσα':'τη Μαύρη Θάλασσα', 'Ανοιχτή θάλασσα':'την ανοιχτή θάλασσα' };
+type Region = { name: string; phrase: string };
+const regionGroups: { label: string; entries: Region[] }[] = [
+  { label:'Ελλάδα & ανατολική Μεσόγειος', entries:[
+    {name:'Αιγαίο',phrase:'το Αιγαίο'}, {name:'Βόρειο Αιγαίο',phrase:'το Βόρειο Αιγαίο'}, {name:'Νότιο Αιγαίο',phrase:'το Νότιο Αιγαίο'},
+    {name:'Ιόνιο',phrase:'το Ιόνιο'}, {name:'Μυρτώο πέλαγος',phrase:'το Μυρτώο πέλαγος'}, {name:'Περιοχή της Κρήτης',phrase:'την περιοχή της Κρήτης'},
+    {name:'Λιβυκό πέλαγος',phrase:'το Λιβυκό πέλαγος'}, {name:'Κρητικό πέλαγος',phrase:'το Κρητικό πέλαγος'}, {name:'Σαρωνικός κόλπος',phrase:'τον Σαρωνικό κόλπο'},
+    {name:'Κορινθιακός κόλπος',phrase:'τον Κορινθιακό κόλπο'}, {name:'Μεσόγειος',phrase:'τη Μεσόγειο'}, {name:'Ανατολική Μεσόγειος',phrase:'την Ανατολική Μεσόγειο'},
+    {name:'Περιοχή της Κύπρου',phrase:'την περιοχή της Κύπρου'}, {name:'Μαύρη Θάλασσα',phrase:'τη Μαύρη Θάλασσα'}, {name:'Θάλασσα του Μαρμαρά',phrase:'τη Θάλασσα του Μαρμαρά'},
+  ]},
+  { label:'Ευρώπη & Ατλαντικός', entries:[
+    {name:'Αδριατική Θάλασσα',phrase:'την Αδριατική'}, {name:'Τυρρηνικό πέλαγος',phrase:'το Τυρρηνικό πέλαγος'}, {name:'Αλβοράν',phrase:'το Αλβοράν'},
+    {name:'Δυτική Μεσόγειος',phrase:'τη Δυτική Μεσόγειο'}, {name:'Ατλαντικός Ωκεανός',phrase:'τον Ατλαντικό Ωκεανό'},
+    {name:'Βόρειος Ατλαντικός',phrase:'τον Βόρειο Ατλαντικό'}, {name:'Νότιος Ατλαντικός',phrase:'τον Νότιο Ατλαντικό'},
+    {name:'Βόρεια Θάλασσα',phrase:'τη Βόρεια Θάλασσα'}, {name:'Βαλτική Θάλασσα',phrase:'τη Βαλτική Θάλασσα'}, {name:'Θάλασσα της Νορβηγίας',phrase:'τη Θάλασσα της Νορβηγίας'},
+  ]},
+  { label:'Αφρική, Ασία & ωκεανοί', entries:[
+    {name:'Ερυθρά Θάλασσα',phrase:'την Ερυθρά Θάλασσα'}, {name:'Κόλπος του Άντεν',phrase:'τον Κόλπο του Άντεν'},
+    {name:'Αραβική Θάλασσα',phrase:'την Αραβική Θάλασσα'}, {name:'Περσικός Κόλπος',phrase:'τον Περσικό Κόλπο'},
+    {name:'Ινδικός Ωκεανός',phrase:'τον Ινδικό Ωκεανό'}, {name:'Ειρηνικός Ωκεανός',phrase:'τον Ειρηνικό Ωκεανό'},
+    {name:'Νότια Σινική Θάλασσα',phrase:'τη Νότια Σινική Θάλασσα'}, {name:'Θάλασσα της Καραϊβικής',phrase:'την Καραϊβική Θάλασσα'},
+    {name:'Κόλπος του Μεξικού',phrase:'τον Κόλπο του Μεξικού'},
+  ]},
+  { label:'Στενά, διώρυγες & περάσματα', entries:[
+    {name:'Στενά των Δαρδανελλίων',phrase:'τα Στενά των Δαρδανελλίων'}, {name:'Βόσπορος',phrase:'τον Βόσπορο'},
+    {name:'Στενά του Γιβραλτάρ',phrase:'τα Στενά του Γιβραλτάρ'}, {name:'Διώρυγα του Σουέζ',phrase:'τη Διώρυγα του Σουέζ'},
+    {name:'Στενά Μπαμπ ελ Μαντέμπ',phrase:'τα Στενά Μπαμπ ελ Μαντέμπ'}, {name:'Στενά του Ορμούζ',phrase:'τα Στενά του Ορμούζ'},
+    {name:'Στενά της Μαλάκκας',phrase:'τα Στενά της Μαλάκκας'}, {name:'Μάγχη',phrase:'τη Μάγχη'},
+    {name:'Στενά του Μεσσήνα',phrase:'τα Στενά του Μεσσήνα'}, {name:'Διώρυγα του Παναμά',phrase:'τη Διώρυγα του Παναμά'},
+    {name:'Ακρωτήριο Καλής Ελπίδας',phrase:'το Ακρωτήριο της Καλής Ελπίδας'},
+  ]},
+  { label:'Γενικά', entries:[{name:'Ανοιχτή θάλασσα',phrase:'την ανοιχτή θάλασσα'}] },
+];
+const regions = ['Χωρίς κοινοποίηση περιοχής', ...regionGroups.flatMap(group => group.entries.map(item=>item.name))];
+const phrases: Record<string,string> = Object.fromEntries(regionGroups.flatMap(group=>group.entries.map(item=>[item.name,item.phrase])));
 const recommended: Record<Context,string> = { 'Εν πλω':'Καλή θάλασσα από…', 'Αγκυροβολημένο':'Όλα καλά από…', 'Άφιξη':'Χαιρετισμούς από…', 'Αναχώρηση':'Με τον νου στο σπίτι από…', 'Νύχτα':'Μια καληνύχτα από…' };
 const vesselUrl = 'https://www.marinetraffic.com/en/ais/details/ships/shipid:9149760/mmsi:248554000/imo:9790983/vessel:SEAVIOLET';
 const dateGreece = (value: Date) => new Intl.DateTimeFormat('el-GR', { timeZone:'Europe/Athens', weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(value);
@@ -19,11 +51,17 @@ const greeceOffset = (now: Date) => {
   return Number(hour.replace('GMT','')) || 0;
 };
 function seaSuggestion(lat:number, lon:number) {
-  if (lat >= 39 && lat <= 47 && lon >= 27 && lon <= 42) return 'Μαύρη Θάλασσα';
-  if (lat >= 34 && lat <= 42 && lon >= 23 && lon <= 30) return 'Αιγαίο';
-  if (lat >= 33 && lat <= 37 && lon >= 22 && lon <= 29) return 'Περιοχή της Κρήτης';
-  if (lat >= 35 && lat <= 41 && lon >= 17 && lon <= 23) return 'Ιόνιο';
+  // Conservative broad suggestions; narrow straits remain a deliberate crew choice.
+  if (lat >= 41.5 && lat <= 47 && lon >= 28 && lon <= 41.5) return 'Μαύρη Θάλασσα';
+  if (lat >= 35.4 && lat <= 40.8 && lon >= 23.1 && lon <= 27.8) return 'Αιγαίο';
+  if (lat >= 33.8 && lat <= 35.3 && lon >= 22 && lon <= 28) return 'Περιοχή της Κρήτης';
+  if (lat >= 36.6 && lat <= 40.4 && lon >= 17 && lon <= 22.1) return 'Ιόνιο';
+  if (lat >= 12.5 && lat <= 29 && lon >= 32.5 && lon <= 43.5) return 'Ερυθρά Θάλασσα';
+  if (lat >= 12 && lat <= 15.7 && lon >= 43.7 && lon <= 52.7) return 'Κόλπος του Άντεν';
+  if (lat >= 24 && lat <= 30 && lon >= 48 && lon <= 56) return 'Περσικός Κόλπος';
+  if (lat >= 10 && lat <= 24 && lon >= 54 && lon <= 73) return 'Αραβική Θάλασσα';
   if (lat >= 30 && lat <= 46 && lon >= -6 && lon <= 36) return 'Μεσόγειος';
+  if (lat >= -45 && lat <= 22 && lon >= 45 && lon <= 105) return 'Ινδικός Ωκεανός';
   if (lat >= -60 && lat <= 70 && lon >= -80 && lon <= 10) return 'Ατλαντικός Ωκεανός';
   return null;
 }
@@ -94,7 +132,7 @@ export function Seaviolet() {
     </div><aside className="sea-side"><div className="sea-side-card"><MapPin size={21}/><h3>Δύο διαφορετικές θέσεις</h3><p>Ο χάρτης δείχνει μόνο το τελευταίο επαληθεύσιμο στίγμα του πλοίου. Η περιοχή του χαιρετισμού επιλέγεται ανεξάρτητα, ακόμη και «χωρίς περιοχή».</p></div><div className="sea-side-card"><ShieldCheck size={21}/><h3>Στην ίδια συσκευή</h3><p>Εναλλάσσεις οικογένεια και πλήρωμα στον ίδιο browser. Ο χαιρετισμός δεν αποστέλλεται ούτε αποθηκεύεται στον server.</p></div><button className="sea-switch" onClick={()=>setView('crew')}>Πλευρά πληρώματος <ArrowRight size={16}/></button></aside></div>
     : <div className="sea-layout"><div className="sea-main"><section className="sea-card sea-compose"><div className="sea-card-heading"><span className="sea-card-icon sea-heart"><Heart size={19}/></span><div><span className="sea-eyebrow">ΕΝΑ ΑΓΓΙΓΜΑ</span><h2>Στείλε ένα σημάδι ότι είσαι καλά</h2></div></div><p className="sea-compose-intro">Επίλεξε μια σύντομη φράση ή γράψε τη δική σου. Εδώ βλέπεις το αποτέλεσμα στην ίδια συσκευή.</p>
       <span className="sea-label">Περίσταση</span><div className="sea-choice">{(Object.keys(recommended) as Context[]).map(item=><button key={item} className={context===item?'chosen':''} onClick={()=>chooseContext(item)}>{item}</button>)}</div>
-      <label className="sea-label" htmlFor="sea-region">Περιοχή που θέλεις να αναφέρεις στον χαιρετισμό</label><select id="sea-region" className="sea-input" value={region} onChange={e=>setRegion(e.target.value)}>{regions.map(item=><option key={item}>{item}</option>)}</select>
+      <label className="sea-label" htmlFor="sea-region">Περιοχή που θέλεις να αναφέρεις στον χαιρετισμό</label><select id="sea-region" className="sea-input" value={region} onChange={e=>setRegion(e.target.value)}><option value={regions[0]}>{regions[0]}</option>{regionGroups.map(group=><optgroup key={group.label} label={group.label}>{group.entries.map(item=><option value={item.name} key={item.name}>{item.name}</option>)}</optgroup>)}</select>
       <p className="sea-only-preview">{suggestion && !stale ? <>Πρόταση από το τελευταίο στίγμα πλοίου: <button className="sea-link-button" onClick={()=>setRegion(suggestion)}>{suggestion}</button>. Επίλεξέ την μόνο αν θέλεις να την αναφέρεις.</> : 'Δεν προτείνεται περιοχή από πρόσφατο στίγμα. Επίλεξε γενική θάλασσα ή χωρίς περιοχή.'}</p>
       <span className="sea-label">Έτοιμος χαιρετισμός <small>· Πρόταση: {recommended[context]}</small></span><div className="sea-phrases">{templates.map(item=><button key={item} className={template===item&&!custom?'chosen':''} onClick={()=>{setTemplate(item);setCustom('');}}>{item}</button>)}</div>
       <label className="sea-label" htmlFor="sea-custom">Ή γράψε κάτι δικό σου (προαιρετικό)</label><textarea id="sea-custom" className="sea-input" rows={2} maxLength={180} placeholder="Μέχρι δύο σύντομες γραμμές…" value={custom} onChange={e=>setCustom(e.target.value)}/>
