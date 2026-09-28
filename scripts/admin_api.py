@@ -228,7 +228,10 @@ def vessel_history(path):
   path=urlsplit(self.path).path
   with transaction() as db:
    user=principal(db,self.headers.get('Cookie',''))
-   if path=='/api/v1/vessel/seaviolet/history':\n    try:self.reply(200,vessel_history(self.path))\n    except Exception as error:self.reply(503,{'error':'Το ιστορικό AIS δεν είναι διαθέσιμο: '+str(error)[:120]})\n   elif path=='/api/v1/geo/areas':
+   if path=='/api/v1/vessel/seaviolet/history':
+    try:self.reply(200,vessel_history(self.path))
+    except Exception as error:self.reply(503,{'error':'Το ιστορικό AIS δεν είναι διαθέσιμο: '+str(error)[:120]})
+   elif path=='/api/v1/geo/areas':
     try:self.reply(200,public_geojson(self.path))
     except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)})
     except Exception as error:self.reply(503,{'error':'Τα γεωγραφικά δεδομένα δεν είναι διαθέσιμα: '+str(error).splitlines()[0][:120]})
@@ -372,4 +375,5 @@ if __name__=='__main__':
  else:
   init()
   ThreadingHTTPServer(('127.0.0.1',int(os.environ.get('KAPAVITA_ADMIN_PORT','8787'))),Handler).serve_forever()
+
 
