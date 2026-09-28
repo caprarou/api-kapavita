@@ -1111,5 +1111,76 @@
     "temporal": "current",
     "reuse": "provider-specific",
     "evidence": "official API"
+  },
+  {
+    "id": "copernicus-sentinel1-floods",
+    "name": "Sentinel-1 για πλημμύρες και νερά",
+    "layer": "copernicus-sentinel1",
+    "count": null,
+    "grain": "raster scene",
+    "fields": [
+      "acquisitionDate",
+      "orbit",
+      "polarization",
+      "backscatter",
+      "geometry"
+    ],
+    "join": "geometry",
+    "joinStatus": "candidate",
+    "status": "candidate",
+    "notes": "Ραντάρ SAR για πλημμύρες και νερά",
+    "sourceId": "copernicus-data-space",
+    "provider": "Copernicus Data Space",
+    "format": "COG/SAFE",
+    "temporal": "on demand",
+    "reuse": "free with attribution",
+    "evidence": "official CDSE APIs"
+  },
+  {
+    "id": "copernicus-land-cover",
+    "name": "Copernicus Land Cover",
+    "layer": "copernicus-land-cover",
+    "count": null,
+    "grain": "raster grid",
+    "fields": [
+      "class",
+      "year",
+      "resolution",
+      "geometry"
+    ],
+    "join": "geometry",
+    "joinStatus": "candidate",
+    "status": "candidate",
+    "notes": "Κάλυψη γης και χρήσεις επιφάνειας",
+    "sourceId": "copernicus-data-space",
+    "provider": "Copernicus Land Monitoring Service",
+    "format": "raster",
+    "temporal": "multi-year",
+    "reuse": "free with attribution",
+    "evidence": "official CLMS catalogue"
+  },
+  {
+    "id": "copernicus-sentinel5p-air",
+    "name": "Sentinel-5P ατμοσφαιρικοί ρύποι",
+    "layer": "copernicus-sentinel5p",
+    "count": null,
+    "grain": "raster cell",
+    "fields": [
+      "pollutant",
+      "acquisitionDate",
+      "value",
+      "unit",
+      "geometry"
+    ],
+    "join": "geometry",
+    "joinStatus": "candidate",
+    "status": "candidate",
+    "notes": "NO2, SO2, CO, O3 και aerosols",
+    "sourceId": "copernicus-data-space",
+    "provider": "Copernicus Sentinel-5P",
+    "format": "raster",
+    "temporal": "daily",
+    "reuse": "free with attribution",
+    "evidence": "official CDSE catalogue"
   }
 ]
