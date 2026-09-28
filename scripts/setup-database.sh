@@ -19,5 +19,6 @@ sudo -u postgres psql --dbname=kapavita --set=ON_ERROR_STOP=1 \
   --command='CREATE EXTENSION IF NOT EXISTS postgis'
 psql --dbname=kapavita --set=ON_ERROR_STOP=1 --file="$ROOT/db/migrations/001_core.sql"
 python3 "$ROOT/scripts/sync_catalog.py"
+python3 "$ROOT/scripts/import_static_geo.py"
 
 echo "KapaVita PostgreSQL/PostGIS database is ready."
