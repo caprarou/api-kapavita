@@ -345,10 +345,10 @@ function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand" onClick={() => switchPanel('map')} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && switchPanel('map')}><span className="brand-mark"><span /></span><span className="brand-name">KAPA<span>VITA</span><small>SPATIAL INTELLIGENCE</small></span></div>
-      <nav className="topnav" aria-label="Κύρια πλοήγηση"><button className={panel === 'map' ? 'active' : ''} onClick={() => switchPanel('map')}>Χάρτης</button>{features.catalog && <button className={panel === 'catalog' ? 'active' : ''} onClick={() => switchPanel('catalog')}>Πηγές δεδομένων</button>}{seavioletAllowed && <button className={panel === 'seaviolet' ? 'active' : ''} onClick={() => switchPanel('seaviolet')}>SEAVIOLET</button>}<button className={panel === 'admin' ? 'active' : ''} onClick={() => switchPanel('admin')}>Διαχείριση</button></nav>
+      <nav className="topnav" aria-label="Κύρια πλοήγηση"><button className={panel === 'map' ? 'active' : ''} onClick={() => switchPanel('map')}>Χάρτης</button>{features.catalog && <button className={panel === 'catalog' ? 'active' : ''} onClick={() => switchPanel('catalog')}>Πηγές δεδομένων</button>}{seavioletAllowed && <button className={panel === 'seaviolet' ? 'active' : ''} onClick={() => switchPanel('seaviolet')}>Liakos ἐν πλῷ</button>}<button className={panel === 'admin' ? 'active' : ''} onClick={() => switchPanel('admin')}>Διαχείριση</button></nav>
       <div className="top-actions"><span className="preview-badge"><span className="pulse-dot" /> Πρώτη έκδοση</span><button className="icon-btn mobile-toggle" aria-label="Άνοιγμα μενού" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={21} /></button></div>
     </header>
-    {mobileMenu && <div className="mobile-nav"><button onClick={() => switchPanel('map')}>Χάρτης</button>{features.catalog && <button onClick={() => switchPanel('catalog')}>Πηγές δεδομένων</button>}{seavioletAllowed && <button onClick={() => switchPanel('seaviolet')}>SEAVIOLET</button>}<button onClick={() => switchPanel('admin')}>Διαχείριση</button></div>}
+    {mobileMenu && <div className="mobile-nav"><button onClick={() => switchPanel('map')}>Χάρτης</button>{features.catalog && <button onClick={() => switchPanel('catalog')}>Πηγές δεδομένων</button>}{seavioletAllowed && <button onClick={() => switchPanel('seaviolet')}>Liakos ἐν πλῷ</button>}<button onClick={() => switchPanel('admin')}>Διαχείριση</button></div>}
     <main className="workspace">
       <aside className={`sidebar ${panel !== 'map' ? 'catalog-sidebar' : ''}`}>
         {panel === 'map' ? <>
@@ -399,6 +399,7 @@ function App() {
   </div>;
 }
 export default App;
+
 
 
 
