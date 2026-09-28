@@ -214,6 +214,9 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
     const interval = window.setInterval(() => { void load(); }, 15 * 60_000);
     return () => { controller?.abort(); window.clearInterval(interval); map.removeLayer(layer); };
   }, [mapRef, active.eeaAir, onEEA, onStatus]);
+
+  useEffect(() => { if (!active.earthquakes || !mapRef.current) return; const map=mapRef.current; const layer=L.layerGroup().addTo(map); const controller=new AbortController(); onStatus('earthquakes','Φόρτωση σεισμών USGS…'); checkedFetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson',controller.signal).then((data:any)=>{ for(const item of (data.features||[])){ const c=item.geometry?.coordinates,p=item.properties||{}; if(!c) continue; const mag=Number(p.mag||0); L.marker([c[1],c[0]],{icon:symbol('✦',mag>=5?'#a52f54':mag>=4?'#d16b38':'#c19a36','Σεισμός')}).bindTooltip((p.place||'Σεισμός')+' · M'+mag.toFixed(1)).on('click',(ev:any)=>{L.DomEvent.stopPropagation(ev);onArea(p.place||'Σεισμός','USGS · M'+mag.toFixed(1)+' · βάθος '+Math.round(c[2]||0)+' km')}).addTo(layer); } onStatus('earthquakes','Σεισμοί τελευταίου 24ώρου · USGS'); }).catch(()=>onStatus('earthquakes','Οι σεισμοί USGS δεν είναι διαθέσιμοι')); return ()=>{controller.abort();map.removeLayer(layer)}; }, [mapRef,active.earthquakes,onArea,onStatus]);
   return null;
 }
+
 
