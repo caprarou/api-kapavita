@@ -197,6 +197,14 @@ def server_status():
  return {'diskFreeGb':round(free/1073741824,1),'diskTotalGb':round(total/1073741824,1),'memoryAvailableMb':mem_mb,'database':database,'docker':docker_state,'aisFile':VESSEL.exists(),'loadAverage1m':round(os.getloadavg()[0],2),'uptimeHours':round(float(Path('/proc/uptime').read_text().split()[0])/3600,1),'serverTime':int(time.time())}
 def username_ok(username): return isinstance(username,str) and re.fullmatch(r'[a-z0-9_.-]{3,32}',username) is not None
 
+def vessel_history(path):
+ if psycopg is None: raise RuntimeError('PostGIS unavailable')
+ params=parse_qs(urlsplit(path).query)
+ hours=max(1,min(int(params.get('hours',['24'])[0]),168))
+ with psycopg.connect(DATA_DSN) as db:
+  rows=db.execute("SELECT observed_at,ST_Y(location),ST_X(location),speed_knots,course,heading,destination,eta,source_id FROM observations.vessel_positions WHERE mmsi=248554000 AND observed_at >= now() - (%s || ' hours')::interval ORDER BY observed_at",(hours,)).fetchall()
+ return {'mmsi':248554000,'hours':hours,'points':[{'observedAt':r[0].isoformat(),'latitude':r[1],'longitude':r[2],'speedKnots':r[3],'course':r[4],'heading':r[5],'destination':r[6],'eta':r[7].isoformat() if r[7] else None,'source':r[8]} for r in rows]}
+
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,format,*args):
   print('%s %s'%(self.address_string(),format%args),flush=True)
@@ -222,7 +230,10 @@ class Handler(BaseHTTPRequestHandler):
   path=urlsplit(self.path).path
   with transaction() as db:
    user=principal(db,self.headers.get('Cookie',''))
-   if path=='/api/v1/geo/areas':
+   if path=='/api/v1/vessel/seaviolet/history':
+    try:self.reply(200,vessel_history(self.path))
+    except Exception as error:self.reply(503,{'error':'Το ιστορικό AIS δεν είναι διαθέσιμο: '+str(error)[:120]})
+   elif path=='/api/v1/geo/areas':
     try:self.reply(200,public_geojson(self.path))
     except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)})
     except Exception as error:self.reply(503,{'error':'Τα γεωγραφικά δεδομένα δεν είναι διαθέσιμα: '+str(error).splitlines()[0][:120]})
