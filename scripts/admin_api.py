@@ -33,7 +33,7 @@ ORIGIN = os.environ.get('KAPAVITA_ORIGIN', 'https://api.kapavita.gr')
 FEATURES = {
  'regions': True, 'municipalities': True, 'communities': True,
  'population': True, 'airports': True, 'aircraft': True, 'marine': True,
- 'weather': True, 'airQuality': True, 'eeaAir': True, 'seaviolet': False, 'catalog': True,
+ 'weather': True, 'airQuality': True, 'eeaAir': True, 'earthquakes': True, 'openaq': True, 'seaviolet': False, 'catalog': True,
 }
 GRANTS = {'seaviolet:view'}
 ATTEMPTS = {}
@@ -377,3 +377,4 @@ if __name__=='__main__':
  else:
   init()
   ThreadingHTTPServer(('127.0.0.1',int(os.environ.get('KAPAVITA_ADMIN_PORT','8787'))),Handler).serve_forever()
+
