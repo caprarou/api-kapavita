@@ -55,7 +55,9 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
     const map = mapRef.current; const controller = new AbortController(); let layer: L.GeoJSON | undefined;
     const canvas = L.canvas({ padding: .3 });
     onStatus('population', 'Φόρτωση απογραφής 2021…');
-    checkedFetch('/data/greek-municipalities-2021.geojson', controller.signal).then(data => {
+    const bounds = map.getBounds().pad(.15);
+    const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(',');
+    checkedFetch('/api/v1/geo/areas?dataset=elstat-municipalities&bbox=' + encodeURIComponent(bbox), controller.signal).then(data => {
       if (controller.signal.aborted) return;
       layer = L.geoJSON(data, {
         style: feature => {

@@ -18,7 +18,7 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 try:
  import psycopg
 except ImportError:
@@ -48,6 +48,12 @@ STATIC_DATA = (
  ('ourairports','Ελληνικά αεροδρόμια','greek-airports.json'),
  ('elstat-search','Ευρετήριο αναζήτησης περιοχών','greek-areas-search-2021.json'),
 )
+PUBLIC_GEO_DATASETS = {
+ 'elstat-municipalities': 'municipality',
+ 'elstat-communities': 'community',
+ 'geoboundaries-regions': 'region',
+ 'iho-ionian-aegean': 'marine_area',
+}
 def connect():
  c = sqlite3.connect(DB, timeout=5)
  c.row_factory = sqlite3.Row
@@ -151,6 +157,28 @@ def purge_storage(kind,dataset_id=None):
    elif kind=='vessel-positions':cur.execute('DELETE FROM observations.vessel_positions')
    else:raise ValueError('Το αποθηκευμένο σύνολο δεν μπορεί να διαγραφεί από εδώ.')
    return cur.rowcount
+def public_geojson(path):
+ query=parse_qs(urlsplit(path).query)
+ dataset=query.get('dataset',[''])[0]
+ if dataset not in PUBLIC_GEO_DATASETS: raise ValueError('Μη διαθέσιμο γεωγραφικό σύνολο.')
+ try:
+  bbox=[float(value) for value in query.get('bbox',['18,34,30,42'])[0].split(',')]
+  if len(bbox)!=4 or not (-180<=bbox[0]<bbox[2]<=180 and -90<=bbox[1]<bbox[3]<=90): raise ValueError
+ except (TypeError,ValueError): raise ValueError('Μη έγκυρο πλαίσιο χάρτη.')
+ try: limit=min(max(int(query.get('limit',['10000'])[0]),1),10000)
+ except (TypeError,ValueError): limit=10000
+ if psycopg is None: raise RuntimeError('Η βάση δεδομένων δεν είναι διαθέσιμη.')
+ with psycopg.connect(DATA_DSN) as data:
+  with data.cursor() as cursor:
+   cursor.execute('''SELECT external_id,name,parent_external_id,population,reference_year,properties::text,ST_AsGeoJSON(geom)
+                     FROM geo.areas
+                     WHERE dataset_id=%s AND ST_Intersects(geom,ST_MakeEnvelope(%s,%s,%s,%s,4326))
+                     ORDER BY name LIMIT %s''',(dataset,*bbox,limit))
+   features=[]
+   for external_id,name,parent,population,year,properties,geometry in cursor.fetchall():
+    record=json.loads(properties or '{}'); record.update({'id':external_id,'name':name,'parentId':parent,'population':population,'referenceYear':year})
+    features.append({'type':'Feature','id':external_id,'geometry':json.loads(geometry),'properties':record})
+ return {'type':'FeatureCollection','features':features,'dataset':dataset,'count':len(features)}
 def server_status():
  total,used,free=shutil.disk_usage(ROOT)
  try:
@@ -194,7 +222,11 @@ class Handler(BaseHTTPRequestHandler):
   path=urlsplit(self.path).path
   with transaction() as db:
    user=principal(db,self.headers.get('Cookie',''))
-   if path=='/api/public':
+   if path=='/api/v1/geo/areas':
+    try:self.reply(200,public_geojson(self.path))
+    except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)})
+    except Exception as error:self.reply(503,{'error':'Τα γεωγραφικά δεδομένα δεν είναι διαθέσιμα: '+str(error).splitlines()[0][:120]})
+   elif path=='/api/public':
     public=flags(db)
     self.reply(200,{'features':public,'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
    elif path=='/api/session':
