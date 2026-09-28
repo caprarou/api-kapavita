@@ -72,7 +72,7 @@ function VesselMap({ position }: { position: Position | null }) {
     if (!element.current) return;
     const map = L.map(element.current, { zoomControl:true }).setView(position ? [position.latitude,position.longitude] : [35,17], position ? 6 : 3);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors', maxZoom:18 }).addTo(map);
-    if (position) L.marker([position.latitude,position.longitude], { icon: L.divIcon({ className:'ship-map-icon', html:'<span>🚢</span>', iconSize:[34,34], iconAnchor:[17,17] }) }).addTo(map).bindPopup('SEAVIOLET · τελευταίο καταγεγραμμένο στίγμα');
+    if (position) L.marker([position.latitude,position.longitude], { icon: L.divIcon({ className:'ship-map-icon', html:'<span>➤</span>', iconSize:[34,34], iconAnchor:[17,17] }) }).addTo(map).bindPopup('SEAVIOLET · τελευταίο καταγεγραμμένο στίγμα');
     const controller = new AbortController();
     fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache:'no-store' }).then(r => r.ok ? r.json() : null).then(data => { const points = data?.points?.filter((p: any) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)) ?? []; if (points.length > 1) { const line = L.polyline(points.map((p: any) => [p.latitude,p.longitude] as [number,number]), { color:'#147fba', weight:3, opacity:.8 }).addTo(map); map.fitBounds(line.getBounds().pad(.15)); } }).catch(() => {});
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
@@ -147,6 +147,7 @@ export function Seaviolet() {
     </section>{vessel}</div><aside className="sea-side"><div className="sea-side-card"><ShieldCheck size={21}/><h3>Ο χαιρετισμός δεν είναι AIS</h3><p>Η επιλογή θάλασσας περιγράφει το μήνυμα, όχι την επαληθευμένη θέση του πλοίου. Ο χάρτης κρατά τη δική του πηγή και ώρα.</p></div><div className="sea-side-card"><Anchor size={21}/><h3>Ακριβής ώρα πλοίου</h3><p>Το πλήρωμα μπορεί να επιλέξει τη ζώνη UTC που ακολουθεί στο πλοίο. Η επιλογή αποθηκεύεται μόνο σε αυτή τη συσκευή.</p></div></aside></div>}
   </div>;
 }
+
 
 
 
