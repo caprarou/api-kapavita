@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import L from 'leaflet';
 import type { Map as LeafletMap } from 'leaflet';
 
-export type OverlayKey = 'population' | 'airports' | 'aircraft' | 'marine' | 'weather' | 'airQuality' | 'eeaAir' | 'earthquakes';
+export type OverlayKey = 'population' | 'airports' | 'aircraft' | 'marine' | 'weather' | 'airQuality' | 'eeaAir' | 'earthquakes' | 'openaq';
 type Props = {
   mapRef: React.MutableRefObject<LeafletMap | null>;
   active: Record<OverlayKey, boolean>;
@@ -216,8 +216,11 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
   }, [mapRef, active.eeaAir, onEEA, onStatus]);
 
   useEffect(() => { if (!active.earthquakes || !mapRef.current) return; const map=mapRef.current; const layer=L.layerGroup().addTo(map); const controller=new AbortController(); onStatus('earthquakes','Φόρτωση σεισμών USGS…'); checkedFetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson',controller.signal).then((data:any)=>{ for(const item of (data.features||[])){ const c=item.geometry?.coordinates,p=item.properties||{}; if(!c) continue; const mag=Number(p.mag||0); L.marker([c[1],c[0]],{icon:symbol('✦',mag>=5?'#a52f54':mag>=4?'#d16b38':'#c19a36','Σεισμός')}).bindTooltip((p.place||'Σεισμός')+' · M'+mag.toFixed(1)).on('click',(ev:any)=>{L.DomEvent.stopPropagation(ev);onArea(p.place||'Σεισμός','USGS · M'+mag.toFixed(1)+' · βάθος '+Math.round(c[2]||0)+' km · '+new Date(p.time||0).toLocaleString('el-GR')+(p.url?' · '+p.url:''))}).addTo(layer); } onStatus('earthquakes','Σεισμοί τελευταίου 24ώρου · USGS'); }).catch(()=>onStatus('earthquakes','Οι σεισμοί USGS δεν είναι διαθέσιμοι')); return ()=>{controller.abort();map.removeLayer(layer)}; }, [mapRef,active.earthquakes,onArea,onStatus]);
+
+  useEffect(() => { if (!active.openaq || !mapRef.current) return; const map=mapRef.current; const layer=L.layerGroup().addTo(map); const controller=new AbortController(); onStatus('openaq','Φόρτωση OpenAQ…'); checkedFetch('https://api.openaq.org/v3/locations?limit=100&country=GR',controller.signal).then((data:any)=>{let n=0; for(const item of (data.results||[])){const lat=item.coordinates?.latitude,lon=item.coordinates?.longitude;if(!Number.isFinite(lat)||!Number.isFinite(lon))continue; const name=item.name||item.locality||'Σταθμός OpenAQ'; L.marker([lat,lon],{icon:symbol('♨','#3478a8','OpenAQ')}).bindTooltip(name).on('click',(ev:any)=>{L.DomEvent.stopPropagation(ev);onArea(name,'OpenAQ · σταθμός ατμοσφαιρικής ποιότητας · '+(item.city||'Ελλάδα'));}).addTo(layer);n++;} onStatus('openaq',n+' σταθμοί · OpenAQ'); }).catch(()=>onStatus('openaq','Το OpenAQ απαιτεί διαθέσιμο API endpoint ή κλειδί')); return ()=>{controller.abort();map.removeLayer(layer)}; }, [mapRef,active.openaq,onArea,onStatus]);
   return null;
 }
+
 
 
 
