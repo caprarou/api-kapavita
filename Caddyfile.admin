@@ -1,27 +1,34 @@
 89-58-62-202.sslip.io {
-    reverse_proxy 127.0.0.1:4096
+	reverse_proxy 127.0.0.1:4096
 }
 
 taxsee.gr {
-    root * /home/dev/sites/taxsee-coming-soon
-    file_server
+	root * /home/dev/sites/taxsee-coming-soon
+	file_server
 }
 
 kapavita.gr, www.kapavita.gr {
-    root * /home/dev/sites/kapavita-coming-soon
-    file_server
+	root * /home/dev/sites/kapavita-coming-soon
+	file_server
 }
 
 api.kapavita.gr {
-    handle /api/* {
-        reverse_proxy 127.0.0.1:8787
-    }
-    handle /data/seaviolet-last-position.json {
-        respond "Not found" 404
-    }
-    handle {
-        root * /home/dev/projects/kapavita/app/dist
-        try_files {path} /index.html
-        file_server
-    }
+	encode zstd gzip
+
+	@versioned_data path /data/greek-regions-2016.geojson /data/greek-municipalities-2021.geojson /data/greek-communities-2021.geojson /data/greek-areas-search-2021.json /data/greek-airports.json /data/greek-sea-areas.geojson
+	header @versioned_data Cache-Control "public, max-age=86400"
+
+	@static_assets path /assets/*
+	header @static_assets Cache-Control "public, max-age=31536000, immutable"
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /data/seaviolet-last-position.json {
+		respond "Not found" 404
+	}
+	handle {
+		root * /home/dev/projects/kapavita/app/dist
+		try_files {path} /index.html
+		file_server
+	}
 }

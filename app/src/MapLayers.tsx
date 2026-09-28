@@ -53,6 +53,7 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
   useEffect(() => {
     if (!active.population || !mapRef.current) return;
     const map = mapRef.current; const controller = new AbortController(); let layer: L.GeoJSON | undefined;
+    const canvas = L.canvas({ padding: .3 });
     onStatus('population', 'Φόρτωση απογραφής 2021…');
     checkedFetch('/data/greek-municipalities-2021.geojson', controller.signal).then(data => {
       if (controller.signal.aborted) return;
@@ -60,7 +61,7 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
         style: feature => {
           const pop = Number(feature?.properties?.pop21 || 0);
           const fillColor = pop < 10000 ? '#d9f2de' : pop < 30000 ? '#7fcea7' : pop < 100000 ? '#2c997f' : '#156258';
-          return { renderer: L.canvas(), color: '#42786e', weight: .85, fillColor, fillOpacity: .66 };
+          return { renderer: canvas, color: '#42786e', weight: .85, fillColor, fillOpacity: .66 };
         },
         onEachFeature: (feature, shape) => {
           const name = String(feature.properties?.NAME_GR ?? 'Δήμος');
