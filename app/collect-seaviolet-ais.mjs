@@ -33,8 +33,8 @@ function connect() {
       if (event.MessageType === 'SubscriptionConfirmation') { retry = 1000; console.log('AIS subscription confirmed'); return; }
       if (!positionTypes.includes(event.MessageType) || Number(event.MetaData?.MMSI) !== 248554000) return;
       const report = event.Message?.[event.MessageType];
-      const latitude = Number(event.MetaData?.Latitude), longitude = Number(event.MetaData?.Longitude);
-      if (report?.Valid === false || !valid(latitude) || !valid(longitude) || Math.abs(latitude)>90 || Math.abs(longitude)>180 || (latitude===0 && longitude===0)) return;
+      const latitude = report?.Latitude, longitude = report?.Longitude;
+      if (!report || report.Valid === false || !valid(latitude) || !valid(longitude) || Math.abs(latitude)>90 || Math.abs(longitude)>180 || (latitude===0 && longitude===0)) return;
       const position = { mmsi:248554000, latitude, longitude, observedAt:new Date().toISOString(), source:'AISStream.io · ώρα παραλαβής AIS' };
       if (valid(report?.Sog) && report.Sog <= 102.2) position.speedKnots = report.Sog;
       await save(position);
