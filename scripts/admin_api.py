@@ -19,9 +19,14 @@ from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
 from urllib.parse import urlsplit
+try:
+ import psycopg
+except ImportError:
+ psycopg = None
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = Path(os.environ.get('KAPAVITA_ADMIN_DB', '/home/dev/.local/share/kapavita/admin.sqlite3'))
+DATA_DSN = os.environ.get('KAPAVITA_DATA_DSN', 'dbname=kapavita')
 VESSEL = ROOT / 'app/dist/data/seaviolet-last-position.json'
 EEA_AIR = Path(os.environ.get('KAPAVITA_EEA_CACHE', '/home/dev/.local/share/kapavita/eea-stations.json'))
 ORIGIN = os.environ.get('KAPAVITA_ORIGIN', 'https://api.kapavita.gr')
@@ -35,6 +40,14 @@ ATTEMPTS = {}
 ATTEMPTS_LOCK = Lock()
 VISIT_ATTEMPTS = {}
 VISIT_LOCK = Lock()
+STATIC_DATA = (
+ ('elstat-municipalities','Δήμοι και πληθυσμός ΕΛΣΤΑΤ 2021','greek-municipalities-2021.geojson'),
+ ('elstat-communities','Δημοτικές κοινότητες ΕΛΣΤΑΤ 2021','greek-communities-2021.geojson'),
+ ('greek-regions','Περιφέρειες Ελλάδας','greek-regions-2016.geojson'),
+ ('marine-regions-iho','Θαλάσσιες περιοχές','greek-sea-areas.geojson'),
+ ('ourairports','Ελληνικά αεροδρόμια','greek-airports.json'),
+ ('elstat-search','Ευρετήριο αναζήτησης περιοχών','greek-areas-search-2021.json'),
+)
 def connect():
  c = sqlite3.connect(DB, timeout=5)
  c.row_factory = sqlite3.Row
@@ -101,6 +114,43 @@ def user_statistics(db):
          'created30d':db.execute('SELECT COUNT(*) FROM users WHERE created>=?',(now-30*86400,)).fetchone()[0],
          'views7d':[{'day':day,'views':totals.get(day,0)} for day in days],
          'viewsToday':totals.get(today.isoformat(),0),'pages7d':pages}
+def storage_inventory():
+ static=[]
+ for item_id,label,filename in STATIC_DATA:
+  path=ROOT/'app/public/data'/filename
+  if path.exists():static.append({'id':item_id,'label':label,'kind':'source-file','rows':None,'bytes':path.stat().st_size,'deletable':False,'protected':True})
+ result={'available':False,'databaseBytes':None,'sources':0,'datasets':0,'items':static}
+ if psycopg is None:
+  result['message']='Η PostgreSQL/PostGIS δεν έχει εγκατασταθεί ακόμη.'
+  return result
+ try:
+  with psycopg.connect(DATA_DSN) as data:
+   with data.cursor() as cur:
+    cur.execute('SELECT pg_database_size(current_database()), (SELECT count(*) FROM catalog.sources), (SELECT count(*) FROM catalog.datasets)')
+    result['databaseBytes'],result['sources'],result['datasets']=cur.fetchone()
+    cur.execute('''SELECT d.id,d.name,count(a.id) FROM catalog.datasets d JOIN geo.areas a ON a.dataset_id=d.id GROUP BY d.id,d.name ORDER BY d.name''')
+    result['items'] += [{'id':'geo:'+row[0],'datasetId':row[0],'label':row[1],'kind':'geo-dataset','rows':row[2],'bytes':None,'deletable':True,'protected':False} for row in cur.fetchall()]
+    for item_id,label,table_name in (
+     ('air-measurements','Ιστορικό μετρήσεων ποιότητας αέρα','observations.air_measurements'),
+     ('vessel-positions','Ιστορικό θέσεων πλοίων','observations.vessel_positions'),
+    ):
+     cur.execute('SELECT count(*) FROM '+table_name)
+     result['items'].append({'id':item_id,'label':label,'kind':item_id,'rows':cur.fetchone()[0],'bytes':None,'deletable':True,'protected':False})
+  result['available']=True
+ except Exception as error:
+  result['message']='Η PostgreSQL/PostGIS δεν είναι ακόμη διαθέσιμη: '+str(error).splitlines()[0][:120]
+ return result
+def purge_storage(kind,dataset_id=None):
+ if psycopg is None:raise RuntimeError('Η PostgreSQL/PostGIS δεν έχει εγκατασταθεί.')
+ with psycopg.connect(DATA_DSN) as data:
+  with data.cursor() as cur:
+   if kind=='geo-dataset':
+    if not isinstance(dataset_id,str) or not dataset_id:raise ValueError('Απαιτείται σύνολο δεδομένων.')
+    cur.execute('DELETE FROM geo.areas WHERE dataset_id=%s',(dataset_id,))
+   elif kind=='air-measurements':cur.execute('DELETE FROM observations.air_measurements')
+   elif kind=='vessel-positions':cur.execute('DELETE FROM observations.vessel_positions')
+   else:raise ValueError('Το αποθηκευμένο σύνολο δεν μπορεί να διαγραφεί από εδώ.')
+   return cur.rowcount
 def server_status():
  total,used,free=shutil.disk_usage(ROOT)
  try:
@@ -114,7 +164,9 @@ def server_status():
    docker_state='διαθέσιμο' if result.returncode==0 else 'εγκατεστημένο, χωρίς πρόσβαση στον daemon'
   except (OSError,subprocess.TimeoutExpired): docker_state='μη διαθέσιμο'
  else: docker_state='μη εγκατεστημένο'
- return {'diskFreeGb':round(free/1073741824,1),'diskTotalGb':round(total/1073741824,1),'memoryAvailableMb':mem_mb,'database':'SQLite ενεργή · μελλοντική PostgreSQL/Docker μη εγκατεστημένη','docker':docker_state,'aisFile':VESSEL.exists(),'loadAverage1m':round(os.getloadavg()[0],2),'uptimeHours':round(float(Path('/proc/uptime').read_text().split()[0])/3600,1),'serverTime':int(time.time())}
+ storage=storage_inventory()
+ database='PostgreSQL/PostGIS και SQLite ενεργές' if storage['available'] else 'SQLite ενεργή · PostgreSQL/PostGIS σε προετοιμασία'
+ return {'diskFreeGb':round(free/1073741824,1),'diskTotalGb':round(total/1073741824,1),'memoryAvailableMb':mem_mb,'database':database,'docker':docker_state,'aisFile':VESSEL.exists(),'loadAverage1m':round(os.getloadavg()[0],2),'uptimeHours':round(float(Path('/proc/uptime').read_text().split()[0])/3600,1),'serverTime':int(time.time())}
 def username_ok(username): return isinstance(username,str) and re.fullmatch(r'[a-z0-9_.-]{3,32}',username) is not None
 
 class Handler(BaseHTTPRequestHandler):
@@ -165,11 +217,12 @@ class Handler(BaseHTTPRequestHandler):
     if not user or user['role']!='admin':self.reply(403,{'error':'Πρόσβαση διαχειριστή απαιτείται.'});return
     users=[{'id':row['id'],'username':row['username'],'role':row['role'],'grants':json.loads(row['grants']),'enabled':bool(row['enabled']),'lastLogin':row['last_login']} for row in db.execute('SELECT * FROM users ORDER BY id')]
     logs=[dict(row) for row in db.execute('SELECT at,actor,action,detail FROM audit ORDER BY id DESC LIMIT 30')]
-    self.reply(200,{'features':flags(db),'users':users,'audit':logs,'status':server_status(),'statistics':user_statistics(db)})
+    self.reply(200,{'features':flags(db),'users':users,'audit':logs,'status':server_status(),'statistics':user_statistics(db),'storage':storage_inventory()})
    else:self.reply(404,{'error':'Δεν βρέθηκε.'})
  def do_POST(self):self.mutate()
  def do_PUT(self):self.mutate()
  def do_PATCH(self):self.mutate()
+ def do_DELETE(self):self.mutate()
  def mutate(self):
   path=urlsplit(self.path).path
   origin=self.headers.get('Origin')
@@ -231,6 +284,13 @@ class Handler(BaseHTTPRequestHandler):
     for key,enabled in values.items(): db.execute('UPDATE flags SET enabled=? WHERE key=?',(int(enabled),key))
     audit(db,user['username'],'flags-updated',','.join(k for k,v in values.items() if v))
     self.reply(200,{'features':flags(db)});return
+   if path=='/api/admin/storage' and self.command=='DELETE':
+    kind=payload.get('kind');dataset_id=payload.get('datasetId')
+    try: deleted=purge_storage(kind,dataset_id)
+    except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)});return
+    except Exception as error:self.reply(503,{'error':'Η διαγραφή δεν ολοκληρώθηκε: '+str(error).splitlines()[0][:120]});return
+    audit(db,user['username'],'stored-data-deleted',f'{kind}:{dataset_id or "all"}:{deleted}')
+    self.reply(200,{'ok':True,'deleted':deleted,'storage':storage_inventory()});return
    if path=='/api/admin/users' and self.command=='POST':
     name=str(payload.get('username','')).lower()
     role=payload.get('role','viewer'); g=payload.get('grants',[])
