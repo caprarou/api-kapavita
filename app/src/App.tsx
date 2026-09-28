@@ -272,7 +272,7 @@ function EEAStationCard({ reading, onClose }: { reading: EEAReading; onClose: ()
 
 function App() {
   const mapRef = useRef<LeafletMap | null>(null);
-  const [panel, setPanel] = useState<Panel>('map');
+  const [panel, setPanel] = useState<Panel>(() => { const saved = sessionStorage.getItem('kapavita-panel'); return saved === 'catalog' || saved === 'seaviolet' || saved === 'admin' ? saved : 'map'; });
   const [features, setFeatures] = useState<Flags>(defaultFlags);
   const [seavioletAllowed, setSeavioletAllowed] = useState(false);
   const refreshPolicy = useCallback(() => { void fetch('/api/public', { credentials: 'same-origin', cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('Policy unavailable'); return r.json(); }).then(d => { const policy=d.features as Flags; setFeatures(policy); setSeavioletAllowed(Boolean(d.seavioletAllowed)); setPanel(previous => previous === 'seaviolet' && !d.seavioletAllowed || previous === 'catalog' && !policy.catalog ? 'map' : previous); }).catch(() => { setFeatures(defaultFlags); setSeavioletAllowed(false); setPanel(previous => previous === 'seaviolet' ? 'map' : previous); }); }, []);
@@ -303,7 +303,7 @@ function App() {
   const [showMunicipalities, setShowMunicipalities] = useState(false);
   const [showCommunities, setShowCommunities] = useState(false);
   const [activeOverlays, setActiveOverlays] = useState<Record<OverlayKey, boolean>>({ population: false, airports: false, aircraft: false, marine: false, weather: false, airQuality: false, eeaAir: false, earthquakes: false, openaq: false });
-  const visibleOverlays = Object.fromEntries((Object.keys(activeOverlays) as OverlayKey[]).map(key => [key, activeOverlays[key] && features[key]])) as Record<OverlayKey, boolean>;
+  const visibleOverlays = Object.fromEntries((Object.keys(activeOverlays) as OverlayKey[]).map(key => [key, activeOverlays[key] && (features[key] ?? true)])) as Record<OverlayKey, boolean>;
   const visibleRegions = showRegions && features.regions;
   const visibleMunicipalities = showMunicipalities && features.municipalities;
   const visibleCommunities = showCommunities && features.communities;
@@ -341,7 +341,7 @@ function App() {
   const selectPoint = useCallback((point: [number, number]) => { setSelectedAircraft(null); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPopulation(null); setSelectedPoint(point); setSelectedPlace(null); setSelectedSource(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedPopulation, setSelectedSource]);
   const selectRegion = useCallback((name: string) => { setSelectedEEA(null); setSelectedPopulation(null); setSelectedPlace({ name, detail: 'Περιφέρεια · όρια 2016', center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedPopulation]);
   const selectArea = useCallback((name: string, detail: string) => { const population = detail.match(/([\d.]+)\s+κάτοικοι/)?.[1]; setSelectedAircraft(null); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPopulation(population ? Number(population.replaceAll('.', '')) : null); setSelectedPlace({ name, detail, center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedPopulation]);
-  const switchPanel = (next: Panel) => { if (next === 'seaviolet' && !seavioletAllowed || next === 'catalog' && !features.catalog) return; setPanel(next); setSelectedSource(null); setMobileMenu(false); setQuery(''); setSearchOpen(false); requestAnimationFrame(() => mapRef.current?.invalidateSize()); };
+  const switchPanel = (next: Panel) => { sessionStorage.setItem('kapavita-panel', next); if (next === 'seaviolet' && !seavioletAllowed || next === 'catalog' && !features.catalog) return; setPanel(next); setSelectedSource(null); setMobileMenu(false); setQuery(''); setSearchOpen(false); requestAnimationFrame(() => mapRef.current?.invalidateSize()); };
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand" onClick={() => switchPanel('map')} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && switchPanel('map')}><span className="brand-mark"><span /></span><span className="brand-name">KAPA<span>VITA</span><small>SPATIAL INTELLIGENCE</small></span></div>
@@ -399,6 +399,7 @@ function App() {
   </div>;
 }
 export default App;
+
 
 
 
