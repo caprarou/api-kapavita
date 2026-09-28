@@ -218,11 +218,17 @@ class Handler(BaseHTTPRequestHandler):
   return data
  def context(self):
   db=connect(); return db,principal(db,self.headers.get('Cookie',''))
+def vessel_history(path):
+ if psycopg is None: raise RuntimeError('PostGIS unavailable')
+ params=parse_qs(urlsplit(path).query); hours=max(1,min(int(params.get('hours',['24'])[0]),168))
+ with psycopg.connect(DATA_DSN) as db:
+  rows=db.execute("SELECT observed_at,ST_Y(location) latitude,ST_X(location) longitude,speed_knots,course,heading,destination,eta,source_id FROM observations.vessel_positions WHERE mmsi=248554000 AND observed_at >= now() - (%s || ' hours')::interval ORDER BY observed_at",(hours,)).fetchall()
+ return {'mmsi':248554000,'hours':hours,'points':[{'observedAt':r[0].isoformat(),'latitude':r[1],'longitude':r[2],'speedKnots':r[3],'course':r[4],'heading':r[5],'destination':r[6],'eta':r[7].isoformat() if r[7] else None,'source':r[8]} for r in rows]}
  def do_GET(self):
   path=urlsplit(self.path).path
   with transaction() as db:
    user=principal(db,self.headers.get('Cookie',''))
-   if path=='/api/v1/geo/areas':
+   if path=='/api/v1/vessel/seaviolet/history':\n    try:self.reply(200,vessel_history(self.path))\n    except Exception as error:self.reply(503,{'error':'Το ιστορικό AIS δεν είναι διαθέσιμο: '+str(error)[:120]})\n   elif path=='/api/v1/geo/areas':
     try:self.reply(200,public_geojson(self.path))
     except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)})
     except Exception as error:self.reply(503,{'error':'Τα γεωγραφικά δεδομένα δεν είναι διαθέσιμα: '+str(error).splitlines()[0][:120]})
@@ -366,3 +372,4 @@ if __name__=='__main__':
  else:
   init()
   ThreadingHTTPServer(('127.0.0.1',int(os.environ.get('KAPAVITA_ADMIN_PORT','8787'))),Handler).serve_forever()
+
