@@ -212,3 +212,5 @@
 .eea-reading-value small { display: block; margin-top: 3px; color: #62839a; font-size: 10px; }
 .eea-reading-time { color: #345f75; font-size: 12px; line-height: 1.7; }
 @media(max-width:680px) { .eea-map-legend { max-width: min(245px, calc(100vw - 105px)); padding: 6px 8px; font-size: 9px; } }
+.thematic-symbol { background: transparent; border: 0; }
+.thematic-symbol span { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border:2px solid #fff; border-radius:50%; box-shadow:0 2px 7px rgba(18,55,52,.28); color:#fff; font-size:18px; font-weight:800; line-height:1; }

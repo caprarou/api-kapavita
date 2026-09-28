@@ -48,6 +48,7 @@ const checkedFetch = async (url: string, signal: AbortSignal) => {
 const planeIcon = (heading: number | null, greek: boolean) => L.divIcon({ className: 'aircraft-icon', iconSize: [30, 30], iconAnchor: [15, 15], html: '<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" style="transform:rotate(' + (Number.isFinite(heading) ? heading : 0) + 'deg)"><path d="M15 2 C16.4 2 17 4 17 6 L17 12 L27 17 L27 20 L17 17 L17 24 L20 26 L20 28 L15 26 L10 28 L10 26 L13 24 L13 17 L3 20 L3 17 L13 12 L13 6 C13 4 13.6 2 15 2Z" fill="' + (greek ? '#2678c9' : '#e78136') + '" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>' });
 const circle = (point: [number, number], color: string, radius = 6) =>
   L.circleMarker(point, { radius, color: '#ffffff', weight: 1.5, fillColor: color, fillOpacity: .92 });
+const symbol = (glyph: string, color: string, label: string) => L.divIcon({ className: 'thematic-symbol', iconSize: [34, 34], iconAnchor: [17, 17], html: '<span style="background:' + color + '" title="' + label.replace(/"/g, '&quot;') + '">' + glyph + '</span>' });
 
 export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA, onStatus }: Props) {
   useEffect(() => {
@@ -133,7 +134,7 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
       for (const [index, city] of cities.entries()) {
         const value = data[index]?.current;
         if (!value || !Number.isFinite(value.temperature_2m)) continue;
-        circle([city.lat, city.lon], '#daa53e', 8).bindTooltip(city.name + ' · ' + value.temperature_2m + '°C')
+        L.marker([city.lat, city.lon], { icon: symbol('☀', '#daa53e', 'Καιρός') }).bindTooltip(city.name + ' · ' + value.temperature_2m + '°C')
           .on('click', event => { L.DomEvent.stopPropagation(event); onArea(city.name, 'Μοντέλο Open-Meteo · ' + value.time.replace('T', ' ') + ' · ' + value.temperature_2m + '°C · βροχή ' + value.precipitation + ' mm · άνεμος ' + value.wind_speed_10m + ' km/h'); }).addTo(layer);
       }
       onStatus('weather', 'Μοντέλο καιρού · ' + layer.getLayers().length + ' ενδεικτικές πόλεις');
@@ -167,7 +168,7 @@ export function MapLayers({ mapRef, active, onArea, onPlane, onAirQuality, onEEA
         if (!value || !Number.isFinite(value.european_aqi)) continue;
         const band = airQualityBand(value.european_aqi);
         const reading: AirReading = { city: city.name, time: value.time, aqi: value.european_aqi, pm25: Number.isFinite(value.pm2_5) ? value.pm2_5 : null, pm10: Number.isFinite(value.pm10) ? value.pm10 : null };
-        const marker = circle([city.lat, city.lon], band.color, index < 7 ? 9 : 6).bindTooltip(city.name + ' · Αέρας: ' + band.name + ' (' + value.european_aqi + ')')
+        const marker = L.marker([city.lat, city.lon], { icon: symbol('♨', band.color, 'Ποιότητα αέρα') }).bindTooltip(city.name + ' · Αέρας: ' + band.name + ' (' + value.european_aqi + ')')
           .on('click', event => { L.DomEvent.stopPropagation(event); onAirQuality(reading); });
         marker.addTo(layer);
         visibleCities++;
