@@ -6,7 +6,9 @@ import './Seaviolet.css';
 type View = 'family' | 'crew';
 type Context = 'Εν πλω' | 'Αγκυροβολημένο' | 'Άφιξη' | 'Αναχώρηση' | 'Νύχτα';
 type Greeting = { text: string; area: string; time: Date };
-type Position = { mmsi: number; latitude: number; longitude: number; observedAt: string; source: string; speedKnots?: number; destination?: string; eta?: string };
+type Position = { mmsi: number; latitude: number; longitude: number; observedAt: string; source: string; speedKnots?: number; course?: number; heading?: number; destination?: string; eta?: string };
+type VesselFields = Record<string, boolean>;
+const defaultVesselFields: VesselFields = { identity:true, technical:true, status:true, destination:true, course:true, clock:true, position:true, route:true, stops:true, source:true };
 const templates = ['Καλημέρα από…', 'Χαιρετισμούς από…', 'Όλα καλά από…', 'Καλή θάλασσα από…', 'Μια καληνύχτα από…', 'Με τον νου στο σπίτι από…', 'Στέλνω έναν χαιρετισμό από…'];
 type Region = { name: string; phrase: string };
 const regionGroups: { label: string; entries: Region[] }[] = [
@@ -114,7 +116,7 @@ function addTimedRouteSegments(
     start = end;
   }
 }
-function VesselMap({ position }: { position: Position | null }) {
+function VesselMap({ position, showRoute }: { position: Position | null; showRoute: boolean }) {
   const element = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!element.current) return;
@@ -187,10 +189,10 @@ function VesselMap({ position }: { position: Position | null }) {
         const speed = Number(position?.speedKnots);
         const speedKnots = Number.isFinite(speed) && speed > 1 ? speed : 12;
         const current: RoutePoint | null = position ? [position.latitude, position.longitude] : null;
-        if (routedCompleted.length > 1 && current) {
+        if (showRoute && routedCompleted.length > 1 && current) {
           addTimedRouteSegments(map, routedCompleted, [[34.67, 33.04], [36.51, 23.42], current], ['Λεμεσός → Νεάπολη', 'Νεάπολη → τρέχον στίγμα'], '#147fba', undefined, speedKnots);
         }
-        if (routedProjected.length > 1 && current) {
+        if (showRoute && routedProjected.length > 1 && current) {
           const projectedCheckpoints: RoutePoint[] = [current, [35.9, -5.5], [20, -14], destination];
           addTimedRouteSegments(map, routedProjected, projectedCheckpoints, ['Τρέχον στίγμα → Γιβραλτάρ', 'Γιβραλτάρ → Ατλαντικός', 'Ατλαντικός → KAOMBO NORTE'], '#d39a3b', '9 8', speedKnots);
           const last = routedProjected.length - 1;
@@ -215,7 +217,7 @@ function validPosition(raw: unknown): Position | null {
   const p = raw as Record<string,unknown>;
   const lat = Number(p.latitude), lon = Number(p.longitude), date = new Date(String(p.observedAt));
   if (p.mmsi !== 248554000 || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat)>90 || Math.abs(lon)>180 || !Number.isFinite(date.getTime()) || date.getTime()>Date.now()+600000 || typeof p.source !== 'string' || !p.source.trim()) return null;
-  return { mmsi:248554000, latitude:lat, longitude:lon, observedAt:date.toISOString(), source:p.source, speedKnots:typeof p.speedKnots==='number' ? p.speedKnots : undefined, destination:typeof p.destination==='string' ? p.destination : undefined, eta:typeof p.eta==='string' ? p.eta : undefined };
+  return { mmsi:248554000, latitude:lat, longitude:lon, observedAt:date.toISOString(), source:p.source, speedKnots:typeof p.speedKnots==='number' ? p.speedKnots : undefined, course:typeof p.course==='number' ? p.course : undefined, heading:typeof p.heading==='number' ? p.heading : undefined, destination:typeof p.destination==='string' ? p.destination : undefined, eta:typeof p.eta==='string' ? p.eta : undefined };
 }
 export function Seaviolet() {
   const [view,setView] = useState<View>('family');
@@ -226,10 +228,12 @@ export function Seaviolet() {
   const [history,setHistory] = useState<Greeting[]>([]);
   const [notice,setNotice] = useState(false);
   const [position,setPosition] = useState<Position | null>(null);
+  const [vesselFields,setVesselFields] = useState<VesselFields>(defaultVesselFields);
   const [offset,setOffset] = useState<number | null>(() => { const n = Number(window.localStorage.getItem('liakos-ship-utc-offset')); return window.localStorage.getItem('liakos-ship-utc-offset') !== null && Number.isInteger(n) && n >= -12 && n <= 14 ? n : null; });
   const [now,setNow] = useState(new Date());
   useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(t); }, []);
   useEffect(() => {
+    fetch('/api/public', { cache:'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d?.vesselFields) setVesselFields((prev) => ({ ...prev, ...d.vesselFields })); }).catch(() => {});
     let alive = true;
     const read = async () => { try {
       const response = await fetch('/api/v1/vessel/seaviolet', { cache:'no-store', credentials:'same-origin' });
@@ -248,10 +252,19 @@ export function Seaviolet() {
   const shipClock = offset === null ? 'Επίλεξε UTC ζώνη του πλοίου' : clock(now,offset)+' (UTC'+(offset>=0?'+':'')+offset+')';
   const difference = offset === null ? 'Απαιτείται η ζώνη ώρας του πλοίου' : (offset-greeceOffset(now) === 0 ? 'Ίδια ώρα με Ελλάδα' : Math.abs(offset-greeceOffset(now))+' ώρες '+(offset>greeceOffset(now)?'μπροστά':'πίσω')+' από Ελλάδα');
   const vessel = <section className="sea-card sea-vessel"><div className="sea-card-heading"><span className="sea-card-icon"><Ship size={19}/></span><div><span className="sea-eyebrow">ΤΙ ΚΑΝΕΙ ΤΟ ΠΛΟΙΟ</span><h2>SEAVIOLET</h2></div><span className="sea-availability">{position ? (stale ? 'Παλιό στίγμα' : 'Τελευταίο στίγμα') : 'Αναμονή στίγματος AIS'}</span></div>
-    <div className="sea-identity">Δεξαμενόπλοιο αργού πετρελαίου · σημαία Μάλτας · κατασκευή 2018 · IMO 9790983 · MMSI 248554000 · διακριτικό 9HA4701</div>
-    <div className="sea-vessel-grid"><div><small>Κατάσταση</small><strong>{position ? (stale ? 'Δεν υπάρχει πρόσφατη επιβεβαίωση' : 'Τελευταία καταγραφή AIS') : 'Δεν έχει παραληφθεί στίγμα'}</strong></div><div><small>Γενική περιοχή στίγματος</small><strong>{position ? (suggestion ?? 'Δεν προσδιορίζεται αξιόπιστα') : 'Μη διαθέσιμη'}</strong></div><div><small>Προορισμός</small><strong>{position?.destination || 'Μη διαθέσιμος από τη συνδεδεμένη πηγή'}</strong></div><div><small>Εκτιμώμενη άφιξη</small><strong>{position?.eta || 'Μη διαθέσιμη από τη συνδεδεμένη πηγή'}</strong></div><div><small>Ώρα Ελλάδας τώρα</small><strong>{clock(now,greeceOffset(now))}</strong></div><div><small>Ώρα πλοίου τώρα</small><strong>{shipClock}</strong><small>{difference}</small></div></div>
-    <label className="sea-label" htmlFor="sea-timezone">Ζώνη ώρας που ακολουθεί το πλοίο (ορίζεται από το πλήρωμα)</label><select id="sea-timezone" className="sea-input" value={offset ?? ''} onChange={e => { const next = e.target.value; setOffset(next === '' ? null : Number(next)); if (next === '') window.localStorage.removeItem('liakos-ship-utc-offset'); else window.localStorage.setItem('liakos-ship-utc-offset',next); }}><option value="">Δεν έχει επιβεβαιωθεί</option>{Array.from({length:27},(_,i)=>i-12).map(v=><option value={v} key={v}>UTC{v>=0?'+':''}{v}</option>)}</select>
-    <h3 className="sea-map-title">{position ? 'Τελευταίο στίγμα από τη δική μας ροή' : 'Εξωτερική ενημέρωση πλοίου'}</h3>{position ? <VesselMap position={position}/> : <ExternalVesselPosition/>}<p className="sea-explain"><Radio size={15}/>{position ? <>Καταγράφηκε {dateGreece(new Date(position.observedAt))} (ώρα Ελλάδας) · πηγή: {position.source}. {stale && 'Το στίγμα είναι παλιό και δεν δείχνει τη σημερινή θέση.'}</> : <>Δεν έχουμε παραλάβει ακόμη έγκυρη αναφορά θέσης AIS για το πλοίο. Η εξωτερική σελίδα του VesselFinder μπορεί να εμφανίζει νεότερα δεδομένα από άλλη πηγή. <a href={vesselUrl} target="_blank" rel="noreferrer">Δες το SEAVIOLET στο MarineTraffic</a> για την τελευταία αναφορά της υπηρεσίας.</>}</p><p className="sea-explain">Η ώρα πλοίου είναι η επιλεγμένη ζώνη του πληρώματος, όχι εκτίμηση από τη θέση. Τα σταθερά χαρακτηριστικά έχουν ελεγχθεί σε μητρώο πλοίων.</p>
+    {vesselFields.identity && <div className="sea-identity">Δεξαμενόπλοιο αργού πετρελαίου · σημαία Μάλτας · κατασκευή 2018</div>}
+    {vesselFields.technical && <div className="sea-identity">IMO 9790983 · MMSI 248554000 · διακριτικό 9HA4701</div>}
+    <div className="sea-vessel-grid">
+      {vesselFields.status && <><div><small>Κατάσταση</small><strong>{position ? (stale ? 'Δεν υπάρχει πρόσφατη επιβεβαίωση' : 'Τελευταία καταγραφή AIS') : 'Δεν έχει παραληφθεί στίγμα'}</strong></div><div><small>Γενική περιοχή στίγματος</small><strong>{position ? (suggestion ?? 'Δεν προσδιορίζεται αξιόπιστα') : 'Μη διαθέσιμη'}</strong></div></>}
+      {vesselFields.destination && <><div><small>Προορισμός</small><strong>{position?.destination || 'Μη διαθέσιμος από τη συνδεδεμένη πηγή'}</strong></div><div><small>Εκτιμώμενη άφιξη</small><strong>{position?.eta || 'Μη διαθέσιμη από τη συνδεδεμένη πηγή'}</strong></div></>}
+      {vesselFields.course && <div><small>Ταχύτητα / πορεία</small><strong>{position?.speedKnots != null ? `${position.speedKnots.toFixed(1)} kn` : 'Δεν παρέχεται'}{position?.course != null ? ` · ${Math.round(position.course)}°` : ''}</strong></div>}
+      {vesselFields.clock && <><div><small>Ώρα Ελλάδας τώρα</small><strong>{clock(now,greeceOffset(now))}</strong></div><div><small>Ώρα πλοίου τώρα</small><strong>{shipClock}</strong><small>{difference}</small></div></>}
+    </div>
+    {vesselFields.clock && <><label className="sea-label" htmlFor="sea-timezone">Ζώνη ώρας που ακολουθεί το πλοίο (ορίζεται από το πλήρωμα)</label><select id="sea-timezone" className="sea-input" value={offset ?? ''} onChange={e => { const next = e.target.value; setOffset(next === '' ? null : Number(next)); if (next === '') window.localStorage.removeItem('liakos-ship-utc-offset'); else window.localStorage.setItem('liakos-ship-utc-offset',next); }}><option value="">Δεν έχει επιβεβαιωθεί</option>{Array.from({length:27},(_,i)=>i-12).map(v=><option value={v} key={v}>UTC{v>=0?'+':''}{v}</option>)}</select></>}
+    {vesselFields.position && <><h3 className="sea-map-title">{position ? 'Τελευταίο στίγμα από τη δική μας ροή' : 'Εξωτερική ενημέρωση πλοίου'}</h3>{position ? <VesselMap position={position} showRoute={vesselFields.route !== false}/> : <ExternalVesselPosition/>}</>}
+    {vesselFields.stops && <p className="sea-explain">Περάσματα και στάσεις: Λιμένας Λεμεσού → Νεάπολη Πελοποννήσου → δηλωμένος προορισμός KAOMBO NORTE.</p>}
+    {vesselFields.source && <p className="sea-explain"><Radio size={15}/>{position ? <>Καταγράφηκε {dateGreece(new Date(position.observedAt))} (ώρα Ελλάδας) · πηγή: {position.source}. {stale && 'Το στίγμα είναι παλιό και δεν δείχνει τη σημερινή θέση.'}</> : <>Δεν έχουμε παραλάβει ακόμη έγκυρη αναφορά θέσης AIS για το πλοίο. Η εξωτερική σελίδα του VesselFinder μπορεί να εμφανίζει νεότερα δεδομένα από άλλη πηγή. <a href={vesselUrl} target="_blank" rel="noreferrer">Δες το SEAVIOLET στο MarineTraffic</a> για την τελευταία αναφορά της υπηρεσίας.</>}</p>}
+    {vesselFields.clock && <p className="sea-explain">Η ώρα πλοίου είναι η επιλεγμένη ζώνη του πληρώματος, όχι εκτίμηση από τη θέση. Τα σταθερά χαρακτηριστικά έχουν ελεγχθεί σε μητρώο πλοίων.</p>}
   </section>;
   const daily = dailySeaNotes[Math.floor(Date.now()/86400000) % dailySeaNotes.length];
   return <div className="sea-page"><section className="sea-card sea-daily-note"><span className="sea-eyebrow">ΣΗΜΕΡΑ ΣΤΗ ΘΑΛΑΣΣΑ</span><h2>{daily.title}</h2><p>«{daily.text}»</p><small>{daily.source}</small></section>

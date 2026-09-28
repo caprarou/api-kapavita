@@ -10,3 +10,8 @@ export type Flags = Record<keyof typeof featureLabels, boolean>;
 export const defaultFlags: Flags = Object.fromEntries(Object.keys(featureLabels).map(k=>[k,k!=='seaviolet'])) as Flags;
 
 
+
+export const vesselFieldLabels: Record<string,string> = {
+ identity:'Ταυτότητα και τύπος πλοίου', technical:'IMO, MMSI, σημαία και διακριτικό', status:'Κατάσταση και γενική περιοχή', destination:'Δηλωμένος προορισμός και ETA', course:'Ταχύτητα και πορεία', clock:'Ώρες και ζώνη ώρας πλοίου', position:'Τελευταίο στίγμα AIS στον χάρτη', route:'Διαδρομή που διανύθηκε και προβλέπεται', stops:'Περάσματα, λιμάνια και στάσεις', source:'Πηγή και χρόνος τελευταίας αναφοράς',
+};
+

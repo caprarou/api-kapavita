@@ -36,6 +36,11 @@ FEATURES = {
  'population': True, 'airports': True, 'aircraft': True, 'marine': True,
  'weather': True, 'airQuality': True, 'eeaAir': True, 'earthquakes': True, 'openaq': True, 'copernicus': True, 'seaviolet': False, 'catalog': True,
 }
+VESSEL_FIELDS = {
+ 'identity': True, 'technical': True, 'status': True, 'destination': True,
+ 'course': True, 'clock': True, 'position': True, 'route': True,
+ 'stops': True, 'source': True,
+}
 GRANTS = {'seaviolet:view'}
 ATTEMPTS = {}
 ATTEMPTS_LOCK = Lock()
@@ -83,7 +88,7 @@ def init():
   CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS visits (day TEXT NOT NULL, page TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(day,page));
   """)
-  for key, enabled in FEATURES.items(): c.execute('INSERT OR IGNORE INTO flags VALUES (?,?)',(key,int(enabled)))
+  for key, enabled in {**FEATURES, **{f'vessel_field_{k}':v for k,v in VESSEL_FIELDS.items()}}.items(): c.execute('INSERT OR IGNORE INTO flags VALUES (?,?)',(key,int(enabled)))
  os.chmod(DB,0o600)
 def password_hash(password):
  salt=secrets.token_bytes(16)
@@ -97,7 +102,14 @@ def password_ok(password, stored):
 def audit(conn,actor,action,detail=''):
  conn.execute('INSERT INTO audit(at,actor,action,detail) VALUES (?,?,?,?)',(int(time.time()),actor,action,detail[:120]))
 def flags(conn):
- return {row['key']:bool(row['enabled']) for row in conn.execute('SELECT key,enabled FROM flags')}
+ keys=tuple(FEATURES)
+ return {row['key']:bool(row['enabled']) for row in conn.execute('SELECT key,enabled FROM flags WHERE key IN ('+','.join('?' for _ in keys)+')',keys)}
+def vessel_fields(conn):
+ result={}
+ for key in VESSEL_FIELDS:
+  row=conn.execute('SELECT enabled FROM flags WHERE key=?',(f'vessel_field_{key}',)).fetchone()
+  result[key]=bool(row['enabled']) if row else VESSEL_FIELDS[key]
+ return result
 def principal(conn,cookie):
  match=re.search(r'(?:^|;\s*)__Host-kv_session=([a-f0-9]{64})(?:;|$)',cookie)
  if not match: return None
@@ -285,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
     except Exception as error:self.reply(503,{'error':'Τα γεωγραφικά δεδομένα δεν είναι διαθέσιμα: '+str(error).splitlines()[0][:120]})
    elif path=='/api/public':
     public=flags(db)
-    self.reply(200,{'features':public,'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
+    self.reply(200,{'features':public,'vesselFields':vessel_fields(db),'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
    elif path=='/api/session':
     self.reply(200,{'user':user_info(user) if user else None,'csrf':user['csrf'] if user else None})
    elif path=='/api/v1/air/eea':
@@ -306,7 +318,7 @@ class Handler(BaseHTTPRequestHandler):
     if not user or user['role']!='admin':self.reply(403,{'error':'Πρόσβαση διαχειριστή απαιτείται.'});return
     users=[{'id':row['id'],'username':row['username'],'role':row['role'],'grants':json.loads(row['grants']),'enabled':bool(row['enabled']),'lastLogin':row['last_login']} for row in db.execute('SELECT * FROM users ORDER BY id')]
     logs=[dict(row) for row in db.execute('SELECT at,actor,action,detail FROM audit ORDER BY id DESC LIMIT 30')]
-    self.reply(200,{'features':flags(db),'users':users,'audit':logs,'status':server_status(),'statistics':user_statistics(db),'storage':storage_inventory()})
+    self.reply(200,{'features':flags(db),'vesselFields':vessel_fields(db),'users':users,'audit':logs,'status':server_status(),'statistics':user_statistics(db),'storage':storage_inventory()})
    else:self.reply(404,{'error':'Δεν βρέθηκε.'})
  def do_POST(self):self.mutate()
  def do_PUT(self):self.mutate()
@@ -367,6 +379,12 @@ class Handler(BaseHTTPRequestHandler):
     audit(db,user['username'],'password-changed')
     self.reply(200,{'ok':True});return
    if user['role']!='admin':self.reply(403,{'error':'Μόνο ο διαχειριστής μπορεί να αλλάξει ρυθμίσεις.'});return
+   if path=='/api/admin/vessel-fields' and self.command=='PUT':
+    values=payload.get('vesselFields')
+    if not isinstance(values,dict) or set(values)!=set(VESSEL_FIELDS) or not all(type(v) is bool for v in values.values()):self.reply(400,{'error':'Μη έγκυρες επιλογές εμφάνισης πλοίου.'});return
+    for key,enabled in values.items(): db.execute('UPDATE flags SET enabled=? WHERE key=?',(int(enabled),f'vessel_field_{key}'))
+    audit(db,user['username'],'vessel-fields-updated',','.join(k for k,v in values.items() if v))
+    self.reply(200,{'vesselFields':vessel_fields(db)});return
    if path=='/api/admin/flags' and self.command=='PUT':
     values=payload.get('features')
     if not isinstance(values,dict) or set(values)!=set(FEATURES) or not all(type(v) is bool for v in values.values()):self.reply(400,{'error':'Μη έγκυρες επιλογές.'});return
