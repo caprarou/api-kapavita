@@ -215,7 +215,7 @@ def copernicus_search(path):
  token=json.load(urllib.request.urlopen(token_req,timeout=20))['access_token']
  req=urllib.request.Request('https://catalogue.dataspace.copernicus.eu/stac/search?collections=sentinel-2-l2a&bbox=19,34,30,42&limit=10',headers={'Authorization':'Bearer '+token})
  data=json.load(urllib.request.urlopen(req,timeout=30))
- return {'features':[{'id':f.get('id'),'datetime':f.get('properties',{}).get('datetime'),'cloudCover':f.get('properties',{}).get('eo:cloud_cover'),'assets':list(f.get('assets',{})), 'thumbnail': (f.get('assets',{}).get('thumbnail') or {}).get('href'), 'thumbnailData': base64.b64encode(urllib.request.urlopen(urllib.request.Request((f.get('assets',{}).get('thumbnail') or {}).get('href'),headers={'Authorization':'Bearer '+token}),timeout=30).read()).decode() if (f.get('assets',{}).get('thumbnail') or {}).get('href') else None} for f in data.get('features',[])]}
+ return {'features':[{'id':f.get('id'),'datetime':f.get('properties',{}).get('datetime'),'cloudCover':f.get('properties',{}).get('eo:cloud_cover'),'bbox':f.get('bbox'),'assets':list(f.get('assets',{})), 'thumbnail': (f.get('assets',{}).get('thumbnail') or {}).get('href'), 'thumbnailData': base64.b64encode(urllib.request.urlopen(urllib.request.Request((f.get('assets',{}).get('thumbnail') or {}).get('href'),headers={'Authorization':'Bearer '+token}),timeout=30).read()).decode() if (f.get('assets',{}).get('thumbnail') or {}).get('href') else None} for f in data.get('features',[])]}
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,format,*args):
   print('%s %s'%(self.address_string(),format%args),flush=True)
@@ -391,6 +391,7 @@ if __name__=='__main__':
  else:
   init()
   ThreadingHTTPServer(('127.0.0.1',int(os.environ.get('KAPAVITA_ADMIN_PORT','8787'))),Handler).serve_forever()
+
 
 
 
