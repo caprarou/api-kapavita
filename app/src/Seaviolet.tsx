@@ -134,39 +134,20 @@ function VesselMap({ position }: { position: Position | null }) {
           .filter((p: any) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)))
           .map((p: any) => [Number(p.latitude), Number(p.longitude)] as [number, number]);
 
-        // Known completed sea leg. It remains visible while the collector is building AIS history.
-        // Every point stays offshore: Limassol -> Neapoli -> western Mediterranean -> current AIS point.
-        const completedSeaRoute: [number, number][] = [
-          [34.67, 33.04], [35.05, 32.2], [35.55, 30.4], [35.7, 28.2],
-          [36.15, 25.8], [36.51, 23.42], [36.35, 22.0], [35.8, 19.0],
-          [35.7, 15.0], [35.9, 10.5], [36.0, 6.2],
-        ];
         const routedCompleted = (routeData?.completed ?? [])
           .filter((p: any) => Array.isArray(p) && p.length === 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
           .map((p: any) => [Number(p[0]), Number(p[1])] as [number, number]);
-        const travelled: [number, number][] = routedCompleted.length > 1
-          ? routedCompleted
-          : aisHistory.length > 1
-            ? aisHistory
-            : position ? [...completedSeaRoute, [position.latitude, position.longitude]] : completedSeaRoute;
-        if (travelled.length > 1) {
+        // Only draw a route returned by the ocean-grid engine. No straight-line fallback is allowed.
+        const travelled: [number, number][] = routedCompleted;        if (travelled.length > 1) {
           L.polyline(travelled, { color: '#147fba', weight: 4, opacity: 0.92, lineCap: 'round' }).addTo(map)
             .bindTooltip(aisHistory.length > 1 ? 'Πραγματική διαδρομή AIS' : 'Διαδρομή που έχει διανυθεί · Λεμεσός → Νεάπολη → τρέχον στίγμα', { sticky: true });
         }
 
-        // Future sea corridor. The final segment always terminates at the exact Kaombo Norte coordinate.
-        const futureSeaWaypoints: [number, number][] = [
-          [35.9, -5.5], [30.0, -10.0], [20.0, -14.0], [8.0, -14.0], [-2.0, -10.0], [-7.0, -15.0],
-        ];
         const routedProjected = (routeData?.projected ?? [])
           .filter((p: any) => Array.isArray(p) && p.length === 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
           .map((p: any) => [Number(p[0]), Number(p[1])] as [number, number]);
-        const projected: [number, number][] = routedProjected.length > 1
-          ? routedProjected
-          : position
-            ? [[position.latitude, position.longitude] as [number, number], ...futureSeaWaypoints.filter((p) => p[1] < position.longitude - 0.5), destination]
-            : [];
-        if (projected.length > 1) {
+        // The projected line also comes exclusively from the ocean-grid engine.
+        const projected: [number, number][] = routedProjected;        if (projected.length > 1) {
           const dashedPart = projected.slice(0, -1);
           if (dashedPart.length > 1) {
             L.polyline(dashedPart, { color: '#d39a3b', weight: 3, opacity: 0.92, dashArray: '9 8', lineCap: 'round' }).addTo(map)
@@ -250,6 +231,7 @@ export function Seaviolet() {
     </section>{vessel}</div><aside className="sea-side"><div className="sea-side-card"><ShieldCheck size={21}/><h3>Ο χαιρετισμός δεν είναι AIS</h3><p>Η επιλογή θάλασσας περιγράφει το μήνυμα, όχι την επαληθευμένη θέση του πλοίου. Ο χάρτης κρατά τη δική του πηγή και ώρα.</p></div><div className="sea-side-card"><Anchor size={21}/><h3>Ακριβής ώρα πλοίου</h3><p>Το πλήρωμα μπορεί να επιλέξει τη ζώνη UTC που ακολουθεί στο πλοίο. Η επιλογή αποθηκεύεται μόνο σε αυτή τη συσκευή.</p></div></aside></div>}
   </div>;
 }
+
 
 
 
