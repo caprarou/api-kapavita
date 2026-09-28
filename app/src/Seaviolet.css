@@ -40,3 +40,9 @@
 .sea-explain a { color: #167d72; text-decoration: underline; }
 .sea-link-button { color: #117d75; font-weight: 800; background: none; border: 0; text-decoration: underline; cursor: pointer; padding: 0; }
 @media (max-width:580px) { .sea-map-wrap { height: 230px; } .sea-greeting-meta { flex-wrap: wrap; line-height: 1.5; } }
+
+.sea-external-map { margin-bottom: 13px; }
+.sea-external-map iframe { display: block; width: 100%; height: 320px; border: 0; border-radius: 9px; background: #e8efeb; }
+.sea-external-map p { color: #6b8489; font-size: 11px; line-height: 1.55; }
+.sea-external-map a { color: #167d72; text-decoration: underline; }
+@media(max-width:580px) { .sea-external-map iframe { height: 320px; } }
