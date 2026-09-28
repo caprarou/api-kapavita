@@ -48,17 +48,19 @@ def main() -> None:
         write_csv(sources_csv, sources, source_columns)
         write_csv(datasets_csv, datasets, dataset_columns)
         sql = directory / "sync.sql"
+        source_stage_columns = ", ".join(f'"{column}" text' for column in source_columns)
+        dataset_stage_columns = ", ".join(f'"{column}" text' for column in dataset_columns)
         sql.write_text(f"""
 BEGIN;
-CREATE TEMP TABLE source_stage ({', '.join(column + ' text' for column in source_columns)});
+CREATE TEMP TABLE source_stage ({source_stage_columns});
 \\copy source_stage FROM '{sources_csv.as_posix()}' WITH (FORMAT csv, HEADER true)
 INSERT INTO catalog.sources
     (id,name,authority,category,description,homepage,documentation,coverage,access,pricing,license,
      commercial_use,update_frequency,geographic_resolution,last_verified,status,raw,updated_at)
-SELECT id,name,NULLIF(authority,''),NULLIF(category,''),NULLIF(description,''),NULLIF(homepage,''),
-       NULLIF(documentation,''),NULLIF(coverage,''),NULLIF(access,''),NULLIF(pricing,''),NULLIF(license,''),
-       NULLIF(commercialUse,''),NULLIF(updateFrequency,''),NULLIF(geographicResolution,''),
-       NULLIF(lastVerified,'')::date,status,raw::jsonb,now()
+SELECT "id","name",NULLIF("authority",''),NULLIF("category",''),NULLIF("description",''),NULLIF("homepage",''),
+       NULLIF("documentation",''),NULLIF("coverage",''),NULLIF("access",''),NULLIF("pricing",''),NULLIF("license",''),
+       NULLIF("commercialUse",''),NULLIF("updateFrequency",''),NULLIF("geographicResolution",''),
+       NULLIF("lastVerified",'')::date,"status","raw"::jsonb,now()
 FROM source_stage
 ON CONFLICT (id) DO UPDATE SET
     name=EXCLUDED.name, authority=EXCLUDED.authority, category=EXCLUDED.category,
@@ -68,14 +70,14 @@ ON CONFLICT (id) DO UPDATE SET
     geographic_resolution=EXCLUDED.geographic_resolution, last_verified=EXCLUDED.last_verified,
     status=EXCLUDED.status, raw=EXCLUDED.raw, updated_at=now();
 
-CREATE TEMP TABLE dataset_stage ({', '.join(column + ' text' for column in dataset_columns)});
+CREATE TEMP TABLE dataset_stage ({dataset_stage_columns});
 \\copy dataset_stage FROM '{datasets_csv.as_posix()}' WITH (FORMAT csv, HEADER true)
 INSERT INTO catalog.datasets
     (id,source_id,name,layer_url,feature_count,grain,join_rule,join_status,status,notes,provider,format,
      temporal,reuse,evidence,fields,raw,updated_at)
-SELECT id,sourceId,name,NULLIF(layer,''),NULLIF(count,'')::integer,NULLIF(grain,''),NULLIF(join,''),
-       NULLIF(joinStatus,''),status,NULLIF(notes,''),NULLIF(provider,''),NULLIF(format,''),
-       NULLIF(temporal,''),NULLIF(reuse,''),NULLIF(evidence,''),fields::jsonb,raw::jsonb,now()
+SELECT "id","sourceId","name",NULLIF("layer",''),NULLIF("count",'')::integer,NULLIF("grain",''),NULLIF("join",''),
+       NULLIF("joinStatus",''),"status",NULLIF("notes",''),NULLIF("provider",''),NULLIF("format",''),
+       NULLIF("temporal",''),NULLIF("reuse",''),NULLIF("evidence",''),"fields"::jsonb,"raw"::jsonb,now()
 FROM dataset_stage
 ON CONFLICT (id) DO UPDATE SET
     source_id=EXCLUDED.source_id, name=EXCLUDED.name, layer_url=EXCLUDED.layer_url,
