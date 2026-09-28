@@ -292,10 +292,11 @@ function App() {
   }, []);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(places[0]);
   const [selectedPoint, setSelectedPoint] = useState<[number, number] | null>(null);
+  const [selectedPopulation, setSelectedPopulation] = useState<number | null>(null);
   const [selectedAirQuality, setSelectedAirQuality] = useState<AirReading | null>(null);
   const [selectedEEA, setSelectedEEA] = useState<EEAReading | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<(Plane & { snapshotTime: number }) | null>(null);
-  const selectAircraft = useCallback((plane: Plane & { snapshotTime: number }) => { setSelectedAircraft(plane); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPlace(null); setSelectedPoint(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint]);
+  const selectAircraft = useCallback((plane: Plane & { snapshotTime: number }) => { setSelectedAircraft(plane); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPopulation(null); setSelectedPlace(null); setSelectedPoint(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedPopulation]);
   const [selectedSource, setSelectedSource] = useState<SourceRecord | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [showRegions, setShowRegions] = useState(false);
@@ -323,23 +324,23 @@ function App() {
       .slice(0, 12);
   }, [query, searchableAreas, features.municipalities, features.communities]);
 
-  const goTo = (place: Place) => { setSelectedEEA(null); setPanel('map'); setSelectedPlace(place); setSelectedPoint(null); setSearchOpen(false); setQuery(''); setMobileMenu(false); setSelectedSource(null); requestAnimationFrame(() => mapRef.current?.flyTo([place.center[1], place.center[0]], place.zoom, { duration: 1.1 })); };
+  const goTo = (place: Place) => { setSelectedEEA(null); setSelectedPopulation(null); setPanel('map'); setSelectedPlace(place); setSelectedPoint(null); setSearchOpen(false); setQuery(''); setMobileMenu(false); setSelectedSource(null); requestAnimationFrame(() => mapRef.current?.flyTo([place.center[1], place.center[0]], place.zoom, { duration: 1.1 })); };
   const goToArea = (area: AreaSearchRecord) => {
     setSelectedEEA(null);
     const bounds = L.latLngBounds([area.bbox[1], area.bbox[0]], [area.bbox[3], area.bbox[2]]);
     const detail = `${area.kind === 'municipality' ? 'Δήμος' : 'Δημοτική κοινότητα'} · απογραφή 2021${area.parent ? ` · ${area.parent}` : ''}${area.population == null ? '' : ` · ${area.population.toLocaleString('el-GR')} κάτοικοι`}`;
-    setPanel('map'); setSelectedPlace({ name: area.name, detail, center: [bounds.getCenter().lng, bounds.getCenter().lat], zoom: area.kind === 'community' ? 12 : 10 });
+    setPanel('map'); setSelectedPopulation(area.population); setSelectedPlace({ name: area.name, detail, center: [bounds.getCenter().lng, bounds.getCenter().lat], zoom: area.kind === 'community' ? 12 : 10 });
     setSelectedPoint(null); setSearchOpen(false); setQuery(''); setMobileMenu(false); setSelectedSource(null);
     if (area.kind === 'municipality') setShowMunicipalities(true);
     else setShowCommunities(true);
     requestAnimationFrame(() => mapRef.current?.fitBounds(bounds, { padding: [36, 36], maxZoom: area.kind === 'community' ? 12 : 11, animate: true }));
   };
   const showSource = (source: SourceRecord) => { if (!features.catalog) return; setSelectedSource(source); setPanel('catalog'); setSearchOpen(false); setMobileMenu(false); };
-  const selectAirQuality = useCallback((reading: AirReading) => { setSelectedAirQuality(reading); setSelectedEEA(null); setSelectedAircraft(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA]);
+  const selectAirQuality = useCallback((reading: AirReading) => { setSelectedAirQuality(reading); setSelectedEEA(null); setSelectedAircraft(null); setSelectedPopulation(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPopulation]);
   const selectEEA = useCallback((reading: EEAReading | null) => { setSelectedEEA(reading); if (reading) { setSelectedAirQuality(null); setSelectedAircraft(null); } }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA]);
-  const selectPoint = useCallback((point: [number, number]) => { setSelectedAircraft(null); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPoint(point); setSelectedPlace(null); setSelectedSource(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedSource]);
-  const selectRegion = useCallback((name: string) => { setSelectedEEA(null); setSelectedPlace({ name, detail: 'Περιφέρεια · όρια 2016', center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedEEA, setSelectedPlace, setSelectedPoint]);
-  const selectArea = useCallback((name: string, detail: string) => { setSelectedAircraft(null); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPlace({ name, detail, center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint]);
+  const selectPoint = useCallback((point: [number, number]) => { setSelectedAircraft(null); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPopulation(null); setSelectedPoint(point); setSelectedPlace(null); setSelectedSource(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedPopulation, setSelectedSource]);
+  const selectRegion = useCallback((name: string) => { setSelectedEEA(null); setSelectedPopulation(null); setSelectedPlace({ name, detail: 'Περιφέρεια · όρια 2016', center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedPopulation]);
+  const selectArea = useCallback((name: string, detail: string) => { const population = detail.match(/([\d.]+)\s+κάτοικοι/)?.[1]; setSelectedAircraft(null); setSelectedAirQuality(null); setSelectedEEA(null); setSelectedPopulation(population ? Number(population.replaceAll('.', '')) : null); setSelectedPlace({ name, detail, center: [23.8, 38.7], zoom: 6 }); setSelectedPoint(null); }, [setSelectedAircraft, setSelectedAirQuality, setSelectedEEA, setSelectedPlace, setSelectedPoint, setSelectedPopulation]);
   const switchPanel = (next: Panel) => { if (next === 'seaviolet' && !seavioletAllowed || next === 'catalog' && !features.catalog) return; setPanel(next); setSelectedSource(null); setMobileMenu(false); setQuery(''); setSearchOpen(false); requestAnimationFrame(() => mapRef.current?.invalidateSize()); };
   return <div className="app-shell">
     <header className="topbar">
@@ -351,6 +352,8 @@ function App() {
     <main className="workspace">
       <aside className={`sidebar ${panel !== 'map' ? 'catalog-sidebar' : ''}`}>
         {panel === 'map' ? <>
+          {selectedPopulation != null && selectedPlace && <div className="population-float-card"><div className="population-float-icon"><Database size={20}/></div><div className="population-float-heading"><span className="eyebrow">ΜΟΝΙΜΟΣ ΠΛΗΘΥΣΜΟΣ · ΕΛΣΤΑΤ</span><h2>{selectedPlace.name}</h2><p>{selectedPlace.detail.split(' · ').slice(0, 2).join(' · ')}</p></div><div className="population-float-value"><strong>{selectedPopulation.toLocaleString('el-GR')}</strong><span>κάτοικοι</span><small>Απογραφή 2021</small></div></div>}
+          {selectedPopulation == null && selectedPlace?.name === 'Ελλάδα' && !selectedPoint && <div className="welcome-map-card"><span className="eyebrow">ΣΗΜΕΡΑ ΣΤΗΝ KAPAVITA</span><h2>Δες την Ελλάδα από κοντά.</h2><p>Επίλεξε ένα επίπεδο ή αναζήτησε δήμο και κοινότητα για να δεις τα διαθέσιμα στοιχεία στον χάρτη.</p><div className="welcome-map-highlights"><span><strong>333</strong><small>δήμοι</small></span><span><strong>6.138</strong><small>κοινότητες</small></span><span><strong>AIS</strong><small>ζωντανή ροή</small></span></div></div>}
           <div className="sidebar-heading"><span className="eyebrow">ΕΞΕΡΕΥΝΗΣΗ</span><h1>Η Ελλάδα,<br/><em>σε ένα μέρος.</em></h1><p>Εξερεύνησε απογραφή πληθυσμού, αεροδρόμια, αεροσκάφη, καιρό και ποιότητα αέρα. Άνοιξε όποιο επίπεδο θέλεις.</p></div>
           <div className="search-wrap"><Search size={19} /><input aria-label="Αναζήτηση περιοχής ή πηγής" placeholder="Αναζήτησε δήμο, κοινότητα ή πηγή..." value={query} onChange={e => { setQuery(e.target.value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} /><span className="search-shortcut">⌕</span>
             {searchOpen && query && <div className="search-results">{filteredAreas.map(area => <button key={`${area.kind}-${area.code}`} onClick={() => goToArea(area)}><MapPin size={15}/><span><strong>{area.name}</strong><small>{area.kind === 'municipality' ? 'Δήμος' : 'Κοινότητα'} · {area.parent ?? 'ΕΛΣΤΑΤ 2021'} · {area.code}</small></span></button>)}{!filteredAreas.length && filteredPlaces.map(p => <button key={p.name} onClick={() => goTo(p)}><MapPin size={15}/><span><strong>{p.name}</strong><small>{p.detail}</small></span></button>)}{(features.catalog ? filteredSources.slice(0, 3) : []).map(s => <button key={s.id} onClick={() => showSource(s)}><Database size={15}/><span><strong>{s.name}</strong><small>Πηγή δεδομένων</small></span></button>)}{!filteredAreas.length && !filteredPlaces.length && !filteredSources.length && <div className="no-results" role="status">{searchError ? 'Η αναζήτηση περιοχών δεν φορτώθηκε.' : !areaIndex ? 'Φόρτωση περιοχών...' : 'Δεν βρέθηκε περιοχή ή πηγή.'}</div>}</div>}
