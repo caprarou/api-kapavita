@@ -52,3 +52,5 @@
 .sea-external-position .sea-alternative-source{margin:13px 0 0;font-size:13px}.sea-external-position .sea-alternative-source a{display:inline;padding:0;background:none;color:#086d68;text-decoration:underline;font-weight:700}.sea-external-position .sea-alternative-source a:hover{background:none;color:#054e4b}
 
 .sea-daily-note{background:linear-gradient(135deg,#f4fbf8,#ffffff);border-left:4px solid #198778}.sea-daily-note h2{margin:8px 0 6px;color:#214e58;font-size:20px}.sea-daily-note p{margin:0;color:#547478;font:italic 15px/1.6 Georgia,serif}.sea-daily-note small{display:block;margin-top:10px;color:#8aa19e;font-size:10px}
+
+.ship-map-icon{background:transparent;border:0}.ship-map-icon span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#147fba;color:#fff;border:2px solid #fff;box-shadow:0 3px 10px #123c4266;font-size:18px}
