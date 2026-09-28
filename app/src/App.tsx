@@ -365,7 +365,7 @@ function App() {
             if (entry === 'Δήμοι (2021)') return <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={visibleMunicipalities} onChange={event => setShowMunicipalities(event.target.checked)} /><span>{entry}</span><small>ΕΛΣΤΑΤ</small></label>;
             if (entry === 'Δημοτικές κοινότητες (2021)') return <label className="layer-item available-layer" key={entry}><input type="checkbox" checked={visibleCommunities} onChange={event => setShowCommunities(event.target.checked)} /><span>{entry}</span><small>ΕΛΣΤΑΤ</small></label>;
             const key = overlayNames[entry];
-            if (key) return <label className="layer-item available-layer thematic-layer" key={entry} title={overlayStatuses[key] ?? ''}><input type="checkbox" checked={activeOverlays[key]} onChange={event => setActiveOverlays(previous => ({ ...previous, [key]: event.target.checked }))} /><span>{entry}<small>{overlayStatuses[key] ?? ({ population: 'ΕΛΣΤΑΤ · 2021', airports: 'OurAirports', aircraft: 'OpenSky · στιγμιότυπο', marine: 'Marine Regions · Ιόνιο/Αιγαίο', weather: 'Open-Meteo · μοντέλο', airQuality: 'CAMS · 37 πόλεις και κάθε σημείο', eeaAir: 'EEA · ωριαίες μετρήσεις σταθμών', earthquakes: 'USGS · τελευταίο 24ωρο' }[key])}</small></span></label>;
+            if (key) return <label className="layer-item available-layer thematic-layer" key={entry} title={overlayStatuses[key] ?? ''}><input type="checkbox" checked={activeOverlays[key]} onChange={event => setActiveOverlays(previous => ({ ...previous, [key]: event.target.checked }))} /><span>{entry}<small>{overlayStatuses[key] ?? ({ population: 'ΕΛΣΤΑΤ · 2021', airports: 'OurAirports', aircraft: 'OpenSky · στιγμιότυπο', marine: 'Marine Regions · Ιόνιο/Αιγαίο', weather: 'Open-Meteo · μοντέλο', airQuality: 'CAMS · 37 πόλεις και κάθε σημείο', eeaAir: 'EEA · ωριαίες μετρήσεις σταθμών', earthquakes: 'USGS · τελευταίο 24ωρο', openaq: 'OpenAQ · σταθμοί αέρα' }[key])}</small></span></label>;
             return <div className="layer-item awaiting-layer" key={entry} title={entry === 'Πλοία / AIS' ? 'Απαιτεί αξιόπιστη άδεια AIS και πρόσβαση σε ροή θέσεων' : entry === 'Θαλάσσιες ζώνες' ? 'Οι δικαιοδοτικές θαλάσσιες ζώνες χρειάζονται έλεγχο επίσημων ορίων και νομικού καθεστώτος' : entry === 'Ακίνητα' ? 'Δεν υπάρχει εδώ δημόσια επαληθευμένη κτηματολογική γεωμετρία ιδιοκτησιών' : 'Απαιτεί επαληθευμένα γεωεντοπισμένα δεδομένα επιχειρήσεων'}><span className="empty-check"/><span>{entry}</span><small>{entry === 'Πλοία / AIS' ? 'Απαιτεί AIS' : 'Σε έλεγχο'}</small></div>;
           })}</div>}</div>)}</div>
           <div className="sidebar-footer"><Info size={17}/><span>Πλοία, επιχειρήσεις, ακίνητα και δικαιοδοτικές ζώνες περιμένουν ελεγμένα δεδομένα. {features.catalog && <button onClick={() => switchPanel('catalog')}>Δες τις πηγές <ArrowRight size={13}/></button>}</span></div>
@@ -399,6 +399,7 @@ function App() {
   </div>;
 }
 export default App;
+
 
 
 
