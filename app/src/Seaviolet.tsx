@@ -112,7 +112,7 @@ function VesselMap({ position }: { position: Position | null }) {
           iconSize: [30, 30],
           iconAnchor: [15, 15],
         }),
-      }).addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -12] });
+      }).addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -12], permanent: true });
     });
     L.marker(destination, {
       icon: L.divIcon({
@@ -121,7 +121,7 @@ function VesselMap({ position }: { position: Position | null }) {
         iconSize: [30, 30],
         iconAnchor: [15, 15],
       }),
-    }).addTo(map).bindTooltip('KAOMBO NORTE · ακριβές δηλωμένο σημείο', { direction: 'top', offset: [0, -12] });
+    }).addTo(map).bindTooltip('KAOMBO NORTE · ακριβές δηλωμένο σημείο', { direction: 'top', offset: [0, -12], permanent: true });
 
     const controller = new AbortController();
     fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache: 'no-store' })
@@ -154,10 +154,14 @@ function VesselMap({ position }: { position: Position | null }) {
           ? [[position.latitude, position.longitude] as [number, number], ...futureSeaWaypoints.filter((p) => p[1] < position.longitude - 0.5), destination]
           : [];
         if (projected.length > 1) {
-          L.polyline(projected, { color: '#d39a3b', weight: 3, opacity: 0.92, dashArray: '9 8', lineCap: 'round' }).addTo(map)
-            .bindTooltip('Προβλεπόμενη θαλάσσια πορεία προς KAOMBO NORTE', { sticky: true });
+          const dashedPart = projected.slice(0, -1);
+          if (dashedPart.length > 1) {
+            L.polyline(dashedPart, { color: '#d39a3b', weight: 3, opacity: 0.92, dashArray: '9 8', lineCap: 'round' }).addTo(map)
+              .bindTooltip('Προβλεπόμενη θαλάσσια πορεία προς KAOMBO NORTE', { sticky: true });
+          }
+          // Keep the final short segment solid so the route visibly touches the exact destination marker.
+          L.polyline([projected[projected.length - 2], destination], { color: '#d39a3b', weight: 4, opacity: 0.98, lineCap: 'round' }).addTo(map);
         }
-
         const all: [number, number][] = travelled.length > 1 ? [...travelled, ...projected] : projected;
         if (all.length > 1) map.fitBounds(L.latLngBounds(all).pad(0.12));
       })
@@ -233,6 +237,7 @@ export function Seaviolet() {
     </section>{vessel}</div><aside className="sea-side"><div className="sea-side-card"><ShieldCheck size={21}/><h3>Ο χαιρετισμός δεν είναι AIS</h3><p>Η επιλογή θάλασσας περιγράφει το μήνυμα, όχι την επαληθευμένη θέση του πλοίου. Ο χάρτης κρατά τη δική του πηγή και ώρα.</p></div><div className="sea-side-card"><Anchor size={21}/><h3>Ακριβής ώρα πλοίου</h3><p>Το πλήρωμα μπορεί να επιλέξει τη ζώνη UTC που ακολουθεί στο πλοίο. Η επιλογή αποθηκεύεται μόνο σε αυτή τη συσκευή.</p></div></aside></div>}
   </div>;
 }
+
 
 
 
