@@ -10,6 +10,7 @@ const cache = resolve(process.env.AIS_POSITION_CACHE || '/home/dev/.local/share/
 let retry = 1000;
 let stopped = false;
 const valid = v => typeof v === 'number' && Number.isFinite(v);
+const positionTypes = ['PositionReport', 'LongRangeAisBroadcastMessage', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport'];
 async function save(position) {
   const encoded=JSON.stringify(position)+'\n';
   await mkdir(dirname(cache), { recursive:true });
@@ -24,14 +25,14 @@ function connect() {
   const socket = new WebSocket('wss://stream.aisstream.io/v0/stream', { perMessageDeflate:true });
   socket.on('open', () => socket.send(JSON.stringify({
     APIKey:key, BoundingBoxes:[[[89.99,-179.99],[-89.99,179.99]]],
-    FiltersShipMMSI:['248554000'], FilterMessageTypes:['PositionReport'],
+    FiltersShipMMSI:['248554000'], FilterMessageTypes:positionTypes,
   })));
   socket.on('message', async raw => {
     try {
       const event = JSON.parse(raw.toString());
       if (event.MessageType === 'SubscriptionConfirmation') { retry = 1000; console.log('AIS subscription confirmed'); return; }
-      if (event.MessageType !== 'PositionReport' || Number(event.MetaData?.MMSI) !== 248554000) return;
-      const report = event.Message?.PositionReport;
+      if (!positionTypes.includes(event.MessageType) || Number(event.MetaData?.MMSI) !== 248554000) return;
+      const report = event.Message?.[event.MessageType];
       const latitude = Number(event.MetaData?.Latitude), longitude = Number(event.MetaData?.Longitude);
       if (report?.Valid === false || !valid(latitude) || !valid(longitude) || Math.abs(latitude)>90 || Math.abs(longitude)>180 || (latitude===0 && longitude===0)) return;
       const position = { mmsi:248554000, latitude, longitude, observedAt:new Date().toISOString(), source:'AISStream.io · ώρα παραλαβής AIS' };
