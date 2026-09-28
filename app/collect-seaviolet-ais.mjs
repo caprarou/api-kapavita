@@ -8,6 +8,8 @@ if (!key) {
   console.error('Set AISSTREAM_API_KEY on the server.');
   process.exit(1);
 }
+const myShipTrackingKey = process.env.MYSHIPTRACKING_API_KEY;
+const kplerToken = process.env.KPLER_API_TOKEN;
 
 const mmsi = 248554000;
 const file = resolve(process.env.AIS_POSITION_FILE || new URL('./dist/data/seaviolet-last-position.json', import.meta.url).pathname);
@@ -15,6 +17,7 @@ const cache = resolve(process.env.AIS_POSITION_CACHE || '/home/dev/.local/share/
 let retry = 1000;
 let stopped = false;
 let socket;
+let fallbackTimer;
 let lastPosition = null;
 let vesselDetails = {};
 let saveQueue = Promise.resolve();
@@ -63,6 +66,140 @@ function save(position) {
   lastPosition = position;
   saveQueue = saveQueue.catch(() => {}).then(() => writePosition(position));
   return saveQueue;
+}
+
+function isNewer(position) {
+  if (!lastPosition) return true;
+  const candidate = new Date(position.observedAt).getTime();
+  const previous = new Date(lastPosition.observedAt).getTime();
+  return Number.isFinite(candidate) && (!Number.isFinite(previous) || candidate > previous);
+}
+
+async function pollMyShipTracking() {
+  if (!myShipTrackingKey || stopped) return;
+
+  try {
+    const response = await fetch(`https://api.myshiptracking.com/api/v2/vessel?mmsi=${mmsi}`, {
+      headers: { Authorization: `Bearer ${myShipTrackingKey}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok) {
+      console.error('MyShipTracking request failed:', response.status);
+      return;
+    }
+
+    const payload = await response.json();
+    const vessel = Array.isArray(payload?.data) ? payload.data[0] : payload?.data;
+    const latitude = number(vessel?.lat);
+    const longitude = number(vessel?.lng);
+    if (Number(vessel?.mmsi) !== mmsi || latitude === null || longitude === null
+      || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) {
+      console.error('MyShipTracking returned no valid SEAVIOLET position');
+      return;
+    }
+
+    const position = {
+      mmsi,
+      latitude,
+      longitude,
+      observedAt: observedAt(vessel.received),
+      source: 'MyShipTracking API · terrestrial AIS',
+      ...vesselDetails,
+    };
+    const speed = number(vessel.speed);
+    if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
+    if (isNewer(position)) {
+      await save(position);
+      console.log('Received SEAVIOLET fallback position', position.observedAt);
+    }
+  } catch (error) {
+    console.error('MyShipTracking request:', error.message);
+  }
+}
+
+async function pollKpler() {
+  if (!kplerToken || stopped) return;
+
+  const query = `query SeavioletPosition {
+    vessels(mmsi: [${mmsi}]) {
+      nodes {
+        staticData { mmsi }
+        lastPositionUpdate {
+          timestamp latitude longitude speed collectionType
+        }
+        currentVoyage { destination eta }
+      }
+    }
+  }`;
+
+  try {
+    const response = await fetch('https://api.sml.kpler.com/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${kplerToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok) {
+      console.error('Kpler request failed:', response.status);
+      return;
+    }
+
+    const payload = await response.json();
+    if (payload?.errors?.length) {
+      console.error('Kpler GraphQL request failed:', payload.errors[0]?.message || 'unknown error');
+      return;
+    }
+
+    const vessel = payload?.data?.vessels?.nodes?.[0];
+    const latest = vessel?.lastPositionUpdate;
+    const latitude = number(latest?.latitude);
+    const longitude = number(latest?.longitude);
+    if (Number(vessel?.staticData?.mmsi) !== mmsi || latitude === null || longitude === null
+      || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) {
+      console.error('Kpler returned no valid SEAVIOLET position');
+      return;
+    }
+
+    const voyage = vessel?.currentVoyage;
+    const destination = cleanText(voyage?.destination);
+    const eta = cleanText(voyage?.eta);
+    if (destination || eta) {
+      vesselDetails = {
+        ...vesselDetails,
+        ...(destination ? { destination } : {}),
+        ...(eta ? { eta } : {}),
+      };
+    }
+
+    const collection = cleanText(latest?.collectionType);
+    const position = {
+      mmsi,
+      latitude,
+      longitude,
+      observedAt: observedAt(latest.timestamp),
+      source: `Kpler Maritime 2.0 · ${collection || 'AIS'}`,
+      ...vesselDetails,
+    };
+    const speed = number(latest.speed);
+    if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
+    if (isNewer(position)) {
+      await save(position);
+      console.log('Received SEAVIOLET Kpler position', position.observedAt);
+    }
+  } catch (error) {
+    console.error('Kpler request:', error.message);
+  }
+}
+
+function scheduleFallback() {
+  const poll = kplerToken ? pollKpler : myShipTrackingKey ? pollMyShipTracking : null;
+  if (!poll) return;
+  void poll();
+  fallbackTimer = setInterval(() => void poll(), 15 * 60 * 1000);
 }
 
 async function restore() {
@@ -168,6 +305,7 @@ function connect() {
 
 function stop() {
   stopped = true;
+  if (fallbackTimer) clearInterval(fallbackTimer);
   socket?.close();
 }
 
@@ -175,4 +313,5 @@ process.on('SIGTERM', stop);
 process.on('SIGINT', stop);
 
 await restore();
+scheduleFallback();
 connect();
