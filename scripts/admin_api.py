@@ -206,6 +206,34 @@ def vessel_history(path):
   rows=db.execute("SELECT observed_at,ST_Y(location),ST_X(location),speed_knots,course,heading,destination,eta,source_id FROM observations.vessel_positions WHERE mmsi=248554000 AND observed_at >= now() - (%s || ' hours')::interval ORDER BY observed_at",(hours,)).fetchall()
  return {'mmsi':248554000,'hours':hours,'points':[{'observedAt':r[0].isoformat(),'latitude':r[1],'longitude':r[2],'speedKnots':r[3],'course':r[4],'heading':r[5],'destination':r[6],'eta':r[7].isoformat() if r[7] else None,'source':r[8]} for r in rows]}
 
+def vessel_route(path):
+ params=parse_qs(urlsplit(path).query)
+ try:
+  latitude=float(params.get('latitude',[''])[0]); longitude=float(params.get('longitude',[''])[0])
+ except (TypeError,ValueError):
+  raise ValueError('Το τρέχον στίγμα δεν είναι έγκυρο.')
+ if not (-90 <= latitude <= 90 and -180 <= longitude <= 180): raise ValueError('Το τρέχον στίγμα δεν είναι έγκυρο.')
+ node=shutil.which('node') or '/usr/bin/node'
+ script="""
+import { findOceanPath } from '@arcnautical/maritime-routing';
+const [lat, lon] = process.argv.slice(1).map(Number);
+const limassol = [33.04, 34.67];
+const neapoli = [23.42, 36.51];
+const current = [lon, lat];
+const destination = [11.2889, -7.2353];
+const leg = (from, to) => findOceanPath(from[1], from[0], to[1], to[0]);
+const join = (...legs) => legs.reduce((out, part) => out.concat(out.length ? part.slice(1) : part), []);
+const completed = join(leg(limassol, neapoli), leg(neapoli, current));
+const projected = leg(current, destination);
+console.log(JSON.stringify({ completed, projected, destination, engine: 'arcnautical-ocean-grid' }));
+"""
+ result=subprocess.run([node,'--input-type=module','-e',script,str(latitude),str(longitude)],cwd=str(ROOT/'app'),capture_output=True,text=True,timeout=25,env={**os.environ,'NODE_ENV':'test'})
+ if result.returncode != 0: raise RuntimeError('Η θαλάσσια δρομολόγηση απέτυχε.')
+ lines=[line.strip() for line in result.stdout.splitlines() if line.strip()]
+ if not lines: raise RuntimeError('Δεν επιστράφηκε θαλάσσια διαδρομή.')
+ data=json.loads(lines[-1])
+ def leaflet(coords): return [[float(lat),float(lon)] for lon,lat in coords if abs(float(lat))<=90 and abs(float(lon))<=180]
+ return {'completed':leaflet(data.get('completed',[])),'projected':leaflet(data.get('projected',[])),'destination':leaflet([data['destination']])[0],'engine':data.get('engine')}
 def copernicus_search(path):
  env=os.environ
  client=env.get('CDSE_CLIENT_ID'); secret=env.get('CDSE_CLIENT_SECRET')
@@ -241,7 +269,11 @@ class Handler(BaseHTTPRequestHandler):
   path=urlsplit(self.path).path
   with transaction() as db:
    user=principal(db,self.headers.get('Cookie',''))
-   if path=='/api/v1/vessel/seaviolet/history':
+   if path=='/api/v1/vessel/seaviolet/route':
+     try:self.reply(200,vessel_route(self.path))
+     except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)})
+     except Exception as error:self.reply(503,{'error':'Η θαλάσσια διαδρομή δεν είναι διαθέσιμη: '+str(error)[:120]})
+   elif path=='/api/v1/vessel/seaviolet/history':
     try:self.reply(200,vessel_history(self.path))
     except Exception as error:self.reply(503,{'error':'Το ιστορικό AIS δεν είναι διαθέσιμο: '+str(error)[:120]})
    elif path=='/api/v1/copernicus/sentinel2':
@@ -391,6 +423,7 @@ if __name__=='__main__':
  else:
   init()
   ThreadingHTTPServer(('127.0.0.1',int(os.environ.get('KAPAVITA_ADMIN_PORT','8787'))),Handler).serve_forever()
+
 
 
 

@@ -11,6 +11,7 @@
     "postbuild": "node restore-seaviolet.mjs"
   },
   "dependencies": {
+    "@arcnautical/maritime-routing": "^1.0.1",
     "fflate": "^0.8.3",
     "hyparquet": "^1.31.2",
     "leaflet": "^1.9.4",
