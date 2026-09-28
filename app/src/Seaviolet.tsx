@@ -70,17 +70,93 @@ function VesselMap({ position }: { position: Position | null }) {
   const element = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!element.current) return;
-    const map = L.map(element.current, { zoomControl:true }).setView(position ? [position.latitude,position.longitude] : [35,17], position ? 6 : 3);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors', maxZoom:18 }).addTo(map);
-    if (position) L.marker([position.latitude,position.longitude], { icon: L.divIcon({ className:'ship-map-icon', html:'<span style="transform:rotate(200deg)">➤</span>', iconSize:[34,34], iconAnchor:[17,17] }) }).addTo(map).bindPopup('SEAVIOLET · τελευταίο καταγεγραμμένο στίγμα');
+    const destination: [number, number] = [-7.2353, 11.2889];
+    const map = L.map(element.current, { zoomControl: true }).setView(
+      position ? [position.latitude, position.longitude] : [35, 17],
+      position ? 6 : 3,
+    );
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18,
+    }).addTo(map);
+
+    const bearingToDestination = position ? (() => {
+      const lat1 = position.latitude * Math.PI / 180;
+      const lat2 = destination[0] * Math.PI / 180;
+      const dLon = (destination[1] - position.longitude) * Math.PI / 180;
+      const y = Math.sin(dLon) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+      return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    })() : 245;
+
+    if (position) {
+      L.marker([position.latitude, position.longitude], {
+        icon: L.divIcon({
+          className: 'ship-map-icon',
+          html: `<span style="transform:rotate(${bearingToDestination}deg)">➤</span>`,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
+        }),
+      }).addTo(map).bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(bearingToDestination)}°`);
+    }
+
+    const anchors: Array<{ point: [number, number]; label: string }> = [
+      { point: [34.67, 33.04], label: 'Αναχώρηση · Λιμένας Λεμεσού' },
+      { point: [36.51, 23.42], label: 'Πέρασμα · Νεάπολη Πελοποννήσου' },
+    ];
+    anchors.forEach(({ point, label }) => {
+      L.marker(point, {
+        icon: L.divIcon({
+          className: 'anchor-map-icon',
+          html: '<span>⚓</span>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+        }),
+      }).addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -12] });
+    });
+    L.marker(destination, {
+      icon: L.divIcon({
+        className: 'destination-map-icon',
+        html: '<span>◆</span>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      }),
+    }).addTo(map).bindTooltip('KAOMBO NORTE · δηλωμένος προορισμός', { direction: 'top', offset: [0, -12] });
+
     const controller = new AbortController();
-    fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache:'no-store' }).then(r => r.ok ? r.json() : null).then(data => { const points = data?.points?.filter((p: any) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)) ?? []; const declared = points.length > 1 ? points : [{ latitude:34.67, longitude:33.04 }, { latitude:35.05, longitude:32.2 }, { latitude:35.55, longitude:30.4 }, { latitude:35.7, longitude:28.2 }, { latitude:36.15, longitude:25.8 }, { latitude:36.51, longitude:23.42 }, { latitude:34.5, longitude:22.5 }, { latitude:34.8, longitude:18 }, { latitude:35.2, longitude:10 }, { latitude:35.8, longitude:2 }, { latitude:35.9, longitude:-5.5 }, { latitude:30, longitude:-10 }, { latitude:20, longitude:-14 }, { latitude:8, longitude:-10 }, { latitude:-2, longitude:-7 }, { latitude:-7.2353, longitude:11.2889 }, ...(position ? [{ latitude:position.latitude, longitude:position.longitude }] : [])]; if (declared.length > 1) { const line = L.polyline(declared.map((p: any) => [p.latitude,p.longitude] as [number,number]), { color: points.length > 1 ? '#147fba' : '#d39a3b', weight:3, opacity:.85, dashArray: points.length > 1 ? undefined : '9 8' }).addTo(map); map.fitBounds(line.getBounds().pad(.15)); } }).catch(() => {});
+    fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const actual: [number, number][] = (data?.points ?? [])
+          .filter((p: any) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)))
+          .map((p: any) => [Number(p.latitude), Number(p.longitude)] as [number, number]);
+        if (actual.length > 1) {
+          L.polyline(actual, { color: '#147fba', weight: 4, opacity: 0.92, lineCap: 'round' }).addTo(map)
+            .bindTooltip('Πραγματική διαδρομή AIS', { sticky: true });
+        }
+
+        // Remaining sea waypoints only: the projected line starts at the current AIS point.
+        const seaRoute: [number, number][] = [
+          [35.4, 18.0], [35.8, 10.0], [35.9, -5.5], [30.0, -10.0],
+          [20.0, -14.0], [8.0, -14.0], [-2.0, -10.0], [-7.0, -15.0], destination,
+        ];
+        const projected: [number, number][] = position
+          ? [[position.latitude, position.longitude], ...seaRoute.filter((p) => p[1] < position.longitude - 0.5)]
+          : [];
+        if (projected.length > 1) {
+          L.polyline(projected, { color: '#d39a3b', weight: 3, opacity: 0.92, dashArray: '9 8', lineCap: 'round' }).addTo(map)
+            .bindTooltip('Προβλεπόμενη πορεία προς KAOMBO NORTE', { sticky: true });
+        }
+
+        const all = actual.length > 1 ? [...actual, ...projected] : projected;
+        if (all.length > 1) map.fitBounds(L.latLngBounds(all).pad(0.12));
+      })
+      .catch(() => {});
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
     return () => { controller.abort(); window.clearTimeout(timer); map.remove(); };
   }, [position]);
-  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με το τελευταίο καταγεγραμμένο στίγμα του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} />{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
-}
-function ExternalVesselPosition() {
+  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με πραγματική και προβλεπόμενη διαδρομή του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} />{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
+}function ExternalVesselPosition() {
   return <div className="sea-external-position"><MapPin size={25}/><div><strong>Δες τη νεότερη θέση στο VesselFinder</strong><p>Η δική μας ροή AIS δεν έχει λάβει ακόμη στίγμα για το SEAVIOLET. Το VesselFinder διαθέτει ανεξάρτητα δεδομένα για τη θέση, τον προορισμό και την εκτιμώμενη άφιξη· άνοιξέ τα απευθείας στην υπηρεσία του.</p><a href="https://www.vesselfinder.com/vessels/details/9790983" target="_blank" rel="noopener noreferrer">Άνοιξε τη σελίδα του SEAVIOLET στο VesselFinder ↗</a><p className="sea-alternative-source">Δεύτερη ανεξάρτητη πηγή: <a href="https://www.myshiptracking.com/vessels/seaviolet-mmsi-248554000-imo-9790983" target="_blank" rel="noopener noreferrer">MyShipTracking ↗</a>. Έλεγξε την ώρα του στίγματος· μπορεί να είναι παλαιότερο.</p></div></div>;
 }
 function validPosition(raw: unknown): Position | null {
@@ -147,6 +223,7 @@ export function Seaviolet() {
     </section>{vessel}</div><aside className="sea-side"><div className="sea-side-card"><ShieldCheck size={21}/><h3>Ο χαιρετισμός δεν είναι AIS</h3><p>Η επιλογή θάλασσας περιγράφει το μήνυμα, όχι την επαληθευμένη θέση του πλοίου. Ο χάρτης κρατά τη δική του πηγή και ώρα.</p></div><div className="sea-side-card"><Anchor size={21}/><h3>Ακριβής ώρα πλοίου</h3><p>Το πλήρωμα μπορεί να επιλέξει τη ζώνη UTC που ακολουθεί στο πλοίο. Η επιλογή αποθηκεύεται μόνο σε αυτή τη συσκευή.</p></div></aside></div>}
   </div>;
 }
+
 
 
 
