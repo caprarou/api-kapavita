@@ -13,8 +13,6 @@ kapavita.gr, www.kapavita.gr {
 }
 
 api.kapavita.gr {
-	encode zstd gzip
-
 	@versioned_data path /data/greek-regions-2016.geojson /data/greek-municipalities-2021.geojson /data/greek-communities-2021.geojson /data/greek-areas-search-2021.json /data/greek-airports.json /data/greek-sea-areas.geojson
 	header @versioned_data Cache-Control "public, max-age=86400"
 
@@ -27,6 +25,7 @@ api.kapavita.gr {
 		respond "Not found" 404
 	}
 	handle {
+		encode zstd gzip
 		root * /home/dev/projects/kapavita/app/dist
 		try_files {path} /index.html
 		file_server
