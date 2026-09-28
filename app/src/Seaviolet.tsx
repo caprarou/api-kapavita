@@ -7,13 +7,17 @@ type View = 'family' | 'crew';
 type Context = 'Εν πλω' | 'Αγκυροβολημένο' | 'Άφιξη' | 'Αναχώρηση' | 'Νύχτα';
 type Greeting = { text: string; area: string; time: Date };
 const greetingHistoryKey = 'liakos-greeting-history-v1';
+const parseGreetingItems = (items: unknown): Greeting[] => {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    const entry = item as Record<string, unknown>;
+    return { text: String(entry.text ?? '').slice(0, 180), area: String(entry.area ?? 'Χωρίς περιοχή'), time: new Date(String(entry.time ?? '')) };
+  }).filter((item) => item.text.trim() && Number.isFinite(item.time.getTime())).slice(0, 5);
+};
 const readGreetingHistory = (): Greeting[] => {
   try {
     const raw = window.localStorage.getItem(greetingHistoryKey);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((item) => ({ text: String(item?.text ?? '').slice(0, 180), area: String(item?.area ?? 'Χωρίς περιοχή'), time: new Date(String(item?.time ?? '')) }))
-      .filter((item) => item.text.trim() && Number.isFinite(item.time.getTime())).slice(0, 5);
+    return parseGreetingItems(raw ? JSON.parse(raw) : []);
   } catch { return []; }
 };
 type Position = { mmsi: number; latitude: number; longitude: number; observedAt: string; source: string; speedKnots?: number; course?: number; heading?: number; destination?: string; eta?: string };
@@ -255,6 +259,14 @@ export function Seaviolet() {
   useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(t); }, []);
   useEffect(() => { try { window.localStorage.setItem(greetingHistoryKey, JSON.stringify(history)); } catch { /* local storage can be unavailable in private browsing */ } }, [history]);
   useEffect(() => {
+    let alive = true;
+    fetch('/api/v1/seaviolet/greetings', { cache:'no-store', credentials:'same-origin' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (alive && Array.isArray(data?.items)) setHistory(parseGreetingItems(data.items)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
     fetch('/api/public', { cache:'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d?.vesselFields) setVesselFields((prev) => ({ ...prev, ...d.vesselFields })); }).catch(() => {});
     let alive = true;
     const read = async () => { try {
@@ -273,7 +285,20 @@ export function Seaviolet() {
   const safeRegion = phrases[region] ?? '';
   const greetingText = quoteChoice ? seaQuote.text : (custom.trim() || (safeRegion ? template.replace('…', ' '+safeRegion) : template.replace(' από…','').replace('…','')));
   const chooseContext = (next:Context) => { setContext(next); setTemplate(recommended[next]); setCustom(''); setQuoteChoice(false); };
-  const preview = () => { setHistory(items => [{text:greetingText,area:region,time:new Date()},...items].slice(0,5)); setNotice(true); setView('family'); };
+  const preview = () => {
+    const item = { text:greetingText, area:region, time:new Date() };
+    setHistory(items => [item, ...items].slice(0, 5));
+    setNotice(true);
+    setView('family');
+    void fetch('/api/v1/seaviolet/greetings', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'same-origin',
+      body:JSON.stringify({ text:item.text, area:item.area }),
+    }).then(r => r.ok ? r.json() : null).then(data => {
+      if (Array.isArray(data?.items)) setHistory(parseGreetingItems(data.items));
+    }).catch(() => {});
+  };
   const shipClock = offset === null ? 'Επίλεξε UTC ζώνη του πλοίου' : clock(now,offset)+' (UTC'+(offset>=0?'+':'')+offset+')';
   const difference = offset === null ? 'Απαιτείται η ζώνη ώρας του πλοίου' : (offset-greeceOffset(now) === 0 ? 'Ίδια ώρα με Ελλάδα' : Math.abs(offset-greeceOffset(now))+' ώρες '+(offset>greeceOffset(now)?'μπροστά':'πίσω')+' από Ελλάδα');
   const vessel = <section className="sea-card sea-vessel"><div className="sea-card-heading"><span className="sea-card-icon"><Ship size={19}/></span><div><span className="sea-eyebrow">ΤΙ ΚΑΝΕΙ ΤΟ ΠΛΟΙΟ</span><h2>SEAVIOLET</h2></div><span className="sea-availability">{position ? `${ageLabel}${stale ? ' · παλιό' : ''}` : 'Αναμονή στίγματος AIS'}</span></div>

@@ -87,6 +87,8 @@ def init():
   CREATE TABLE IF NOT EXISTS flags (key TEXT PRIMARY KEY, enabled INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS visits (day TEXT NOT NULL, page TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(day,page));
+  CREATE TABLE IF NOT EXISTS seaviolet_greetings (id INTEGER PRIMARY KEY AUTOINCREMENT, created INTEGER NOT NULL, text TEXT NOT NULL, area TEXT NOT NULL DEFAULT 'Χωρίς περιοχή', device TEXT NOT NULL DEFAULT '');
+  CREATE INDEX IF NOT EXISTS idx_seaviolet_greetings_created ON seaviolet_greetings(created DESC);
   """)
   for key, enabled in {**FEATURES, **{f'vessel_field_{k}':v for k,v in VESSEL_FIELDS.items()}}.items(): c.execute('INSERT OR IGNORE INTO flags VALUES (?,?)',(key,int(enabled)))
  os.chmod(DB,0o600)
@@ -110,6 +112,9 @@ def vessel_fields(conn):
   row=conn.execute('SELECT enabled FROM flags WHERE key=?',(f'vessel_field_{key}',)).fetchone()
   result[key]=bool(row['enabled']) if row else VESSEL_FIELDS[key]
  return result
+def seaviolet_greetings(conn):
+ rows=conn.execute('SELECT text,area,created FROM seaviolet_greetings ORDER BY id DESC LIMIT 5').fetchall()
+ return [{'text':row['text'],'area':row['area'],'time':dt.datetime.fromtimestamp(row['created'],dt.timezone.utc).isoformat()} for row in rows]
 def principal(conn,cookie):
  match=re.search(r'(?:^|;\s*)__Host-kv_session=([a-f0-9]{64})(?:;|$)',cookie)
  if not match: return None
@@ -295,6 +300,8 @@ class Handler(BaseHTTPRequestHandler):
     try:self.reply(200,public_geojson(self.path))
     except (ValueError,RuntimeError) as error:self.reply(400,{'error':str(error)})
     except Exception as error:self.reply(503,{'error':'Τα γεωγραφικά δεδομένα δεν είναι διαθέσιμα: '+str(error).splitlines()[0][:120]})
+   elif path=='/api/v1/seaviolet/greetings':
+    self.reply(200,{'items':seaviolet_greetings(db)})
    elif path=='/api/public':
     public=flags(db)
     self.reply(200,{'features':public,'vesselFields':vessel_fields(db),'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
@@ -344,6 +351,15 @@ class Handler(BaseHTTPRequestHandler):
     day=dt.datetime.now(ZoneInfo('Europe/Athens')).date().isoformat()
     db.execute('INSERT INTO visits(day,page,views) VALUES (?,?,1) ON CONFLICT(day,page) DO UPDATE SET views=views+1',(day,page))
     self.reply(200,{'ok':True});return
+   if path=='/api/v1/seaviolet/greetings' and self.command=='POST':
+    text=str(payload.get('text','')).strip()[:180]
+    area=str(payload.get('area','Χωρίς περιοχή')).strip()[:120] or 'Χωρίς περιοχή'
+    device=str(payload.get('device','')).strip()[:120]
+    if not text:self.reply(400,{'error':'Το μήνυμα είναι κενό.'});return
+    created=int(time.time())
+    db.execute('INSERT INTO seaviolet_greetings(created,text,area,device) VALUES (?,?,?,?)',(created,text,area,device))
+    self.reply(201,{'items':seaviolet_greetings(db)})
+    return
    if path=='/api/login' and self.command=='POST':
     ip=self.headers.get('X-Forwarded-For',self.client_address[0]).split(',')[0].strip()[:64]
     now=time.time()
