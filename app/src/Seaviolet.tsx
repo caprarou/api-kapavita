@@ -121,41 +121,51 @@ function VesselMap({ position }: { position: Position | null }) {
         iconSize: [30, 30],
         iconAnchor: [15, 15],
       }),
-    }).addTo(map).bindTooltip('KAOMBO NORTE · δηλωμένος προορισμός', { direction: 'top', offset: [0, -12] });
+    }).addTo(map).bindTooltip('KAOMBO NORTE · ακριβές δηλωμένο σημείο', { direction: 'top', offset: [0, -12] });
 
     const controller = new AbortController();
     fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        const actual: [number, number][] = (data?.points ?? [])
+        const aisHistory: [number, number][] = (data?.points ?? [])
           .filter((p: any) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)))
           .map((p: any) => [Number(p.latitude), Number(p.longitude)] as [number, number]);
-        if (actual.length > 1) {
-          L.polyline(actual, { color: '#147fba', weight: 4, opacity: 0.92, lineCap: 'round' }).addTo(map)
-            .bindTooltip('Πραγματική διαδρομή AIS', { sticky: true });
+
+        // Known completed sea leg. It remains visible while the collector is building AIS history.
+        // Every point stays offshore: Limassol -> Neapoli -> western Mediterranean -> current AIS point.
+        const completedSeaRoute: [number, number][] = [
+          [34.67, 33.04], [35.05, 32.2], [35.55, 30.4], [35.7, 28.2],
+          [36.15, 25.8], [36.51, 23.42], [36.35, 22.0], [35.8, 19.0],
+          [35.7, 15.0], [35.9, 10.5], [36.0, 6.2],
+        ];
+        const travelled: [number, number][] = aisHistory.length > 1
+          ? aisHistory
+          : position ? [...completedSeaRoute, [position.latitude, position.longitude]] : completedSeaRoute;
+        if (travelled.length > 1) {
+          L.polyline(travelled, { color: '#147fba', weight: 4, opacity: 0.92, lineCap: 'round' }).addTo(map)
+            .bindTooltip(aisHistory.length > 1 ? 'Πραγματική διαδρομή AIS' : 'Διαδρομή που έχει διανυθεί · Λεμεσός → Νεάπολη → τρέχον στίγμα', { sticky: true });
         }
 
-        // Remaining sea waypoints only: the projected line starts at the current AIS point.
-        const seaRoute: [number, number][] = [
-          [35.4, 18.0], [35.8, 10.0], [35.9, -5.5], [30.0, -10.0],
-          [20.0, -14.0], [8.0, -14.0], [-2.0, -10.0], [-7.0, -15.0], destination,
+        // Future sea corridor. The final segment always terminates at the exact Kaombo Norte coordinate.
+        const futureSeaWaypoints: [number, number][] = [
+          [35.9, -5.5], [30.0, -10.0], [20.0, -14.0], [8.0, -14.0], [-2.0, -10.0], [-7.0, -15.0],
         ];
         const projected: [number, number][] = position
-          ? [[position.latitude, position.longitude], ...seaRoute.filter((p) => p[1] < position.longitude - 0.5)]
+          ? [[position.latitude, position.longitude] as [number, number], ...futureSeaWaypoints.filter((p) => p[1] < position.longitude - 0.5), destination]
           : [];
         if (projected.length > 1) {
           L.polyline(projected, { color: '#d39a3b', weight: 3, opacity: 0.92, dashArray: '9 8', lineCap: 'round' }).addTo(map)
-            .bindTooltip('Προβλεπόμενη πορεία προς KAOMBO NORTE', { sticky: true });
+            .bindTooltip('Προβλεπόμενη θαλάσσια πορεία προς KAOMBO NORTE', { sticky: true });
         }
 
-        const all = actual.length > 1 ? [...actual, ...projected] : projected;
+        const all: [number, number][] = travelled.length > 1 ? [...travelled, ...projected] : projected;
         if (all.length > 1) map.fitBounds(L.latLngBounds(all).pad(0.12));
       })
       .catch(() => {});
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
     return () => { controller.abort(); window.clearTimeout(timer); map.remove(); };
   }, [position]);
-  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με πραγματική και προβλεπόμενη διαδρομή του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} />{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
+  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με διαδρομή που έχει διανυθεί και προβλεπόμενη θαλάσσια πορεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} />{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
 }function ExternalVesselPosition() {
   return <div className="sea-external-position"><MapPin size={25}/><div><strong>Δες τη νεότερη θέση στο VesselFinder</strong><p>Η δική μας ροή AIS δεν έχει λάβει ακόμη στίγμα για το SEAVIOLET. Το VesselFinder διαθέτει ανεξάρτητα δεδομένα για τη θέση, τον προορισμό και την εκτιμώμενη άφιξη· άνοιξέ τα απευθείας στην υπηρεσία του.</p><a href="https://www.vesselfinder.com/vessels/details/9790983" target="_blank" rel="noopener noreferrer">Άνοιξε τη σελίδα του SEAVIOLET στο VesselFinder ↗</a><p className="sea-alternative-source">Δεύτερη ανεξάρτητη πηγή: <a href="https://www.myshiptracking.com/vessels/seaviolet-mmsi-248554000-imo-9790983" target="_blank" rel="noopener noreferrer">MyShipTracking ↗</a>. Έλεγξε την ώρα του στίγματος· μπορεί να είναι παλαιότερο.</p></div></div>;
 }
@@ -223,6 +233,8 @@ export function Seaviolet() {
     </section>{vessel}</div><aside className="sea-side"><div className="sea-side-card"><ShieldCheck size={21}/><h3>Ο χαιρετισμός δεν είναι AIS</h3><p>Η επιλογή θάλασσας περιγράφει το μήνυμα, όχι την επαληθευμένη θέση του πλοίου. Ο χάρτης κρατά τη δική του πηγή και ώρα.</p></div><div className="sea-side-card"><Anchor size={21}/><h3>Ακριβής ώρα πλοίου</h3><p>Το πλήρωμα μπορεί να επιλέξει τη ζώνη UTC που ακολουθεί στο πλοίο. Η επιλογή αποθηκεύεται μόνο σε αυτή τη συσκευή.</p></div></aside></div>}
   </div>;
 }
+
+
 
 
 
