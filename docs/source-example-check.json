@@ -1,0 +1,71 @@
+{
+  "checkedAt": "2026-09-28T00:27:05.425611+00:00",
+  "method": "Anonymous bounded live example; data quality/rights not established.",
+  "results": [
+    {
+      "id": "eurostat",
+      "httpStatus": 200,
+      "json": true,
+      "topLevel": [
+        "version",
+        "class",
+        "label",
+        "source",
+        "updated"
+      ],
+      "result": "anonymous-example-ok",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/demo_pjan?geo=EL&time=2024&sex=T&age=TOTAL"
+    },
+    {
+      "id": "gbif",
+      "httpStatus": 200,
+      "json": true,
+      "topLevel": [
+        "offset",
+        "limit",
+        "endOfRecords",
+        "count",
+        "results"
+      ],
+      "result": "anonymous-example-ok",
+      "url": "https://api.gbif.org/v1/occurrence/search?country=GR&limit=1"
+    },
+    {
+      "id": "open-meteo",
+      "httpStatus": 200,
+      "json": true,
+      "topLevel": [
+        "latitude",
+        "longitude",
+        "generationtime_ms",
+        "utc_offset_seconds",
+        "timezone"
+      ],
+      "result": "anonymous-example-ok",
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=37.98&longitude=23.72&current=temperature_2m&timezone=Europe%2FAthens"
+    },
+    {
+      "id": "usgs-earthquakes",
+      "httpStatus": 200,
+      "json": true,
+      "topLevel": [
+        "type",
+        "metadata",
+        "features"
+      ],
+      "result": "anonymous-example-ok",
+      "url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minlatitude=34&maxlatitude=42&minlongitude=19&maxlongitude=30&limit=1&orderby=time"
+    },
+    {
+      "id": "world-bank",
+      "httpStatus": 200,
+      "json": true,
+      "topLevel": [
+        "dict",
+        "list"
+      ],
+      "result": "anonymous-example-ok",
+      "url": "https://api.worldbank.org/v2/country/GRC/indicator/SP.POP.TOTL?format=json&per_page=1"
+    }
+  ]
+}

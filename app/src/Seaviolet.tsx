@@ -99,7 +99,7 @@ export function Seaviolet() {
   useEffect(() => {
     let alive = true;
     const read = async () => { try {
-      const response = await fetch('/data/seaviolet-last-position.json', { cache:'no-store' });
+      const response = await fetch('/api/v1/vessel/seaviolet', { cache:'no-store', credentials:'same-origin' });
       if (response.ok && alive) setPosition(validPosition(await response.json()));
     } catch { /* AIS feed is optional; keep last known position in the session. */ } };
     void read(); const t = window.setInterval(() => void read(), 60000);

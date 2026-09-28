@@ -14,7 +14,7 @@ Restart=always
 RestartSec=15
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/home/dev/projects/kapavita/app/dist/data
+ReadWritePaths=/home/dev/projects/kapavita/app/dist/data /home/dev/.local/share/kapavita
 
 [Install]
 WantedBy=multi-user.target

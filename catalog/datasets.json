@@ -967,5 +967,100 @@
     "reuse": "CDLA Permissive 2.0 ή Apache 2.0 αναλόγως πηγής",
     "evidence": "DuckDB GeoParquet release 2026-09-23.1, πλαίσιο 23.727–23.729 / 37.983–37.985: 5 εγγραφές country GR με id, όνομα, basic_category, θέση · 28/09/2026",
     "notes": "Ελληνικό δείγμα περιλαμβάνει π.χ. Milano Sport και Hotel Alassia. Χαρτογραφημένα σημεία, όχι ΓΕΜΗ/ΑΦΜ. Το operating_status δεν δείχνει αν είναι ανοικτό αυτή την ώρα."
+  },
+  {
+    "id": "aisstream-dataset",
+    "sourceId": "aisstream",
+    "provider": "AISStream.io",
+    "name": "Θέσεις πλοίων SEAVIOLET",
+    "layer": "https://aisstream.io/documentation",
+    "count": null,
+    "grain": "MMSI / στίγμα",
+    "fields": [
+      "MMSI",
+      "Latitude",
+      "Longitude",
+      "Sog",
+      "Cog",
+      "ώρα παραλαβής"
+    ],
+    "join": "Χωρική σύνδεση με δήμο/περιφέρεια με αναφορά στο έτος και την προέλευση",
+    "joinStatus": "Υποψήφια· δεν έγινε εθνική εξαγωγή/σύζευξη",
+    "status": "Ελεγμένη τεκμηρίωση· μη ενεργό επίπεδο",
+    "format": "WebSocket · προσωπικό κλειδί server",
+    "temporal": "Εξαρτάται από το συγκεκριμένο προϊόν/συμβάν",
+    "reuse": "Έλεγχος ειδικής άδειας πριν από δημόσια αναδημοσίευση",
+    "evidence": "Επίσημη τεκμηρίωση προϊόντος · 28/09/2026",
+    "notes": "Στίγματα MMSI, ταχύτητα, πορεία· μόνο νέα συμβάντα μετά τη σύνδεση"
+  },
+  {
+    "id": "esa-worldcover-dataset",
+    "sourceId": "esa-worldcover",
+    "provider": "ESA",
+    "name": "Κάλυψη γης 2021",
+    "layer": "https://esa-worldcover.org/en/data-access",
+    "count": null,
+    "grain": "Raster 10 m",
+    "fields": [
+      "Map",
+      "κλάση κάλυψης",
+      "γεωαναφορά"
+    ],
+    "join": "Χωρική σύνδεση με δήμο/περιφέρεια με αναφορά στο έτος και την προέλευση",
+    "joinStatus": "Υποψήφια· δεν έγινε εθνική εξαγωγή/σύζευξη",
+    "status": "Ελεγμένη τεκμηρίωση· μη ενεργό επίπεδο",
+    "format": "Λήψη raster / WMS / WMTS",
+    "temporal": "Εξαρτάται από το συγκεκριμένο προϊόν/συμβάν",
+    "reuse": "CC BY 4.0 με αναφορά προέλευσης",
+    "evidence": "Επίσημη τεκμηρίωση προϊόντος · 28/09/2026",
+    "notes": "11 κλάσεις κάλυψης γης για το 2021 στα 10 m· δεν δείχνει τίτλους ακινήτων"
+  },
+  {
+    "id": "ghsl-pop-dataset",
+    "sourceId": "ghsl-pop",
+    "provider": "JRC",
+    "name": "Πληθυσμός ανά κελί",
+    "layer": "https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php",
+    "count": null,
+    "grain": "Raster 100 m",
+    "fields": [
+      "population count",
+      "πλέγμα",
+      "έτος"
+    ],
+    "join": "Χωρική σύνδεση με δήμο/περιφέρεια με αναφορά στο έτος και την προέλευση",
+    "joinStatus": "Υποψήφια· δεν έγινε εθνική εξαγωγή/σύζευξη",
+    "status": "Ελεγμένη τεκμηρίωση· μη ενεργό επίπεδο",
+    "format": "Λήψη raster",
+    "temporal": "Εξαρτάται από το συγκεκριμένο προϊόν/συμβάν",
+    "reuse": "Έλεγχος ειδικής άδειας πριν από δημόσια αναδημοσίευση",
+    "evidence": "Επίσημη τεκμηρίωση προϊόντος · 28/09/2026",
+    "notes": "GHS-POP εκτιμήσεις πληθυσμού ανά κελί 100 m· δεν αντικαθιστούν την απογραφή ΕΛΣΤΑΤ"
+  },
+  {
+    "id": "copernicus-era5-dataset",
+    "sourceId": "copernicus-era5",
+    "provider": "ECMWF/Copernicus",
+    "name": "Ιστορικός καιρός ERA5",
+    "layer": "https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels",
+    "count": null,
+    "grain": "Πλέγμα ~0.25°",
+    "fields": [
+      "temperature",
+      "precipitation",
+      "wind",
+      "pressure",
+      "time",
+      "latitude",
+      "longitude"
+    ],
+    "join": "Χωρική σύνδεση με δήμο/περιφέρεια με αναφορά στο έτος και την προέλευση",
+    "joinStatus": "Υποψήφια· δεν έγινε εθνική εξαγωγή/σύζευξη",
+    "status": "Ελεγμένη τεκμηρίωση· μη ενεργό επίπεδο",
+    "format": "Λογαριασμός και CDS API",
+    "temporal": "Εξαρτάται από το συγκεκριμένο προϊόν/συμβάν",
+    "reuse": "Έλεγχος ειδικής άδειας πριν από δημόσια αναδημοσίευση",
+    "evidence": "Επίσημη τεκμηρίωση προϊόντος · 28/09/2026",
+    "notes": "Ωριαία παγκόσμια επανανάλυση ιστορικού καιρού από το 1940· δεν είναι επιτόπια μέτρηση"
   }
 ]

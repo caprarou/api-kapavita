@@ -4,5 +4,6 @@
 **/.env.*
 !**/.env.example
 *.log
+__pycache__/
 Caddyfile.review
 .DS_Store

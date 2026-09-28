@@ -1,0 +1,20 @@
+[Unit]
+Description=KapaVita authenticated admin API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dev
+Group=dev
+WorkingDirectory=/home/dev/projects/kapavita
+ExecStart=/usr/bin/python3 /home/dev/projects/kapavita/scripts/admin_api.py
+Restart=always
+RestartSec=4
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/dev/.local/share/kapavita
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

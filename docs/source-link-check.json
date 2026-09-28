@@ -1,0 +1,224 @@
+{
+  "checkedAt": "2026-09-28T00:27:04.958524+00:00",
+  "method": "HTTP GET published documentation/homepage; reachability does not verify the API, Greek coverage, licensing, or production suitability.",
+  "results": [
+    {
+      "sourceId": "aerodatabox",
+      "url": "https://aerodatabox.com/api-spec",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "aishub",
+      "url": "https://www.aishub.net/api",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "aisstream",
+      "url": "https://aisstream.io/documentation",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "bank-of-greece-real-estate",
+      "url": "https://www.bankofgreece.gr/en/statistics/real-estate-market/residential-and-commercial-property-price-indices-and-other-short-term-indices",
+      "httpStatus": 403,
+      "result": "restricted-or-unavailable"
+    },
+    {
+      "sourceId": "copernicus-data-space",
+      "url": "https://documentation.dataspace.copernicus.eu/APIs/STAC.html",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "copernicus-era5",
+      "url": "https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "data-gov-gr",
+      "url": "https://data.gov.gr/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "diavgeia",
+      "url": "https://diavgeia.gov.gr/api/help",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "eea-air-quality",
+      "url": "https://air.discomap.eea.europa.eu/arcgis/rest/services/AirQuality/AirQualityDownloadServiceEUMonitoringStations/MapServer",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "elstat",
+      "url": "https://lms.statistics.gr/el/web/guest/digital-cartographical-data",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "emodnet-vessel-density",
+      "url": "https://ows.emodnet-humanactivities.eu/geonetwork/srv/api/records/0f2f3ff1-30ef-49e1-96e7-8ca78d58a07c",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "emsa-safeseanet",
+      "url": "https://www.emsa.europa.eu/combined-maritime-data-menu/data-sources.html",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "emy",
+      "url": "https://www.emy.gr/",
+      "httpStatus": null,
+      "result": "network-inconclusive",
+      "reason": "URLError"
+    },
+    {
+      "sourceId": "esa-worldcover",
+      "url": "https://esa-worldcover.org/en/data-access",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "eurostat",
+      "url": "https://ec.europa.eu/eurostat/web/user-guides/data-browser/api-data-access/api-getting-started/api",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "gbif",
+      "url": "https://techdocs.gbif.org/en/openapi/v1/occurrence",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "gemi-open-data",
+      "url": "https://opendata.businessportal.gr/techdocs/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "geoboundaries-grc-adm2-2016",
+      "url": "https://www.geoboundaries.org/api/current/gbOpen/GRC/ADM2/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "geodata",
+      "url": "https://www.geodata.gov.gr/en/dataset",
+      "httpStatus": null,
+      "result": "network-inconclusive",
+      "reason": "URLError"
+    },
+    {
+      "sourceId": "ghsl-pop",
+      "url": "https://human-settlement.emergency.copernicus.eu/ghs_pop2023.php",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "gisco-lau",
+      "url": "https://gisco-services.ec.europa.eu/distribution/v1/lau-2024.html",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "global-fishing-watch",
+      "url": "https://api-doc.globalfishingwatch.org/our-apis/documentation/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "jrc-ghs-obat",
+      "url": "https://data.jrc.ec.europa.eu/dataset/f41a22f1-5741-4c41-86eb-6384654f6927",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "ktimatologio-inspire",
+      "url": "https://www.ktimatologio.gr/pliroforiako-yliko/geoxorika/42",
+      "httpStatus": 403,
+      "result": "restricted-or-unavailable"
+    },
+    {
+      "sourceId": "marine-regions-iho",
+      "url": "https://www.marineregions.org/webservices.php",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "mef-diavgeia",
+      "url": "https://mef.diavgeia.gov.gr/pages/API",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "nasa-firms",
+      "url": "https://firms.modaps.eosdis.nasa.gov/api/area/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "open-meteo",
+      "url": "https://open-meteo.com/en/docs",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "openaq",
+      "url": "https://docs.openaq.org/api",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "opensky",
+      "url": "https://openskynetwork.github.io/opensky-api/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "osm-overpass",
+      "url": "https://dev.overpass-api.de/overpass-doc/en/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "ourairports",
+      "url": "https://ourairports.com/data/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "overture-places",
+      "url": "https://docs.overturemaps.org/schema/reference/places/place/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "usgs-earthquakes",
+      "url": "https://earthquake.usgs.gov/fdsnws/event/1/",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "world-bank",
+      "url": "https://datahelpdesk.worldbank.org/knowledgebase/articles/889392",
+      "httpStatus": 200,
+      "result": "documentation-reachable"
+    },
+    {
+      "sourceId": "ypen-maritime-plan",
+      "url": "https://ypen.gov.gr/gia-proti-fora-sti-chora-thalassios-chorotaxikos-schediasmos/",
+      "httpStatus": 403,
+      "result": "restricted-or-unavailable"
+    }
+  ]
+}

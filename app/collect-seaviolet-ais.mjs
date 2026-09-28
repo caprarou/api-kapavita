@@ -6,14 +6,18 @@ import { dirname, resolve } from 'node:path';
 const key = process.env.AISSTREAM_API_KEY;
 if (!key) { console.error('Set AISSTREAM_API_KEY on the server.'); process.exit(1); }
 const file = resolve(process.env.AIS_POSITION_FILE || new URL('./dist/data/seaviolet-last-position.json', import.meta.url).pathname);
+const cache = resolve(process.env.AIS_POSITION_CACHE || '/home/dev/.local/share/kapavita/seaviolet-last-position.json');
 let retry = 1000;
 let stopped = false;
 const valid = v => typeof v === 'number' && Number.isFinite(v);
 async function save(position) {
+  const encoded=JSON.stringify(position)+'\n';
+  await mkdir(dirname(cache), { recursive:true });
+  await writeFile(cache+'.tmp',encoded,{mode:0o600});
+  await rename(cache+'.tmp',cache);
   await mkdir(dirname(file), { recursive:true });
-  const temp = file + '.tmp';
-  await writeFile(temp, JSON.stringify(position) + '\n', { mode:0o644 });
-  await rename(temp,file);
+  await writeFile(file+'.tmp',encoded,{mode:0o644});
+  await rename(file+'.tmp',file);
 }
 function connect() {
   if (stopped) return;

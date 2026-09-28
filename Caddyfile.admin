@@ -1,0 +1,27 @@
+89-58-62-202.sslip.io {
+    reverse_proxy 127.0.0.1:4096
+}
+
+taxsee.gr {
+    root * /home/dev/sites/taxsee-coming-soon
+    file_server
+}
+
+kapavita.gr, www.kapavita.gr {
+    root * /home/dev/sites/kapavita-coming-soon
+    file_server
+}
+
+api.kapavita.gr {
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8787
+    }
+    handle /data/seaviolet-last-position.json {
+        respond "Not found" 404
+    }
+    handle {
+        root * /home/dev/projects/kapavita/app/dist
+        try_files {path} /index.html
+        file_server
+    }
+}

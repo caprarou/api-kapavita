@@ -10,8 +10,9 @@ The first public preview of a map-centered registry for data about Greece.
 - Layer groups for land, sea, air and environment. An opt-in 2016 regional-boundary layer is active; other thematic layers remain candidates.
 - Clicking the map returns geographic coordinates, not verified administrative boundaries or facts.
 
-No live feeds, dataset overlays, account system, PostgreSQL or PostGIS database are active yet.
-Most registry entries are leads for verification. The geoBoundaries record documents one locally served, historical map layer; see `docs/regions-layer.md` for provenance and licensing.
+The map now contains validated ELSTAT administrative boundaries/population, airports, aircraft snapshots, weather and model-based air quality. The source registry contains 36 sources and 43 datasets; see `docs/source-review-2026-09-28.md` for exactly what was checked. The SEAVIOLET AIS collector has a confirmed subscription but no recorded vessel report yet.
+
+A new role-based administration service and dashboard are implemented; **the Caddy route and systemd service require the one-time SSH installation in `docs/admin-control.md`**. Until installation, the login and private vessel view are unavailable. The settings database is SQLite; Docker, PostgreSQL and PostGIS are not installed.
 
 ## Run
 
