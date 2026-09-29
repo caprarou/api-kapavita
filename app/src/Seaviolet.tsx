@@ -237,9 +237,9 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string, arrows = false) => {
       if (points.length < 2) return;
       if (!dashArray) {
-        L.polyline(points, { color: '#8bd2ed', weight: 13, opacity: 0.42, lineCap: 'round', interactive: false }).addTo(map);
+        L.polyline(points, { color: '#8bd2ed', weight: 17, opacity: 0.46, lineCap: 'round', interactive: false }).addTo(map);
       }
-      const line = L.polyline(points, { color, weight: dashArray ? 3 : 6, opacity: dashArray ? 0.82 : 1, dashArray, lineCap: 'round' })
+      const line = L.polyline(points, { color, weight: dashArray ? 3 : 8, opacity: dashArray ? 0.82 : 1, dashArray, lineCap: 'round' })
         .addTo(map).bindTooltip(tooltip, { sticky: true });
       if (!dashArray) actualLines.push(line);
       if (arrows) addDirectionArrows(map, points, color, 1);
@@ -319,7 +319,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           vesselMarker.bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(movementCourse)}° · υπολογισμός από τα δύο τελευταία AIS στίγματα`);
         }
         historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
-          L.circleMarker(toRoutePoint(item), { radius: 5, color: '#fff', weight: 2, fillColor: actualColor, fillOpacity: 1 })
+          L.circleMarker(toRoutePoint(item), { radius: 6.5, color: '#fff', weight: 2.4, fillColor: actualColor, fillOpacity: 1 })
             .addTo(map).bindTooltip(`AIS · ${dateGreece(new Date(item.observedAt))}`, { direction: 'top', offset: [0, -5] });
         });
         const durationText = (from?: string, to?: string) => from && to ? formatVoyageTime(Math.max(0, (new Date(to).getTime() - new Date(from).getTime()) / 3600000)) : 'δεν υπολογίζεται';
