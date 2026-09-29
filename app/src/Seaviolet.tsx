@@ -182,6 +182,7 @@ function addTimedRouteSegments(
 }
 function VesselMap({ position, showRoute }: { position: Position | null; showRoute: boolean }) {
   const element = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const [nauticalVisible, setNauticalVisible] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const toggleMapExpanded = async () => {
@@ -199,6 +200,9 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     } catch {
       setMapExpanded((expanded) => !expanded);
     }
+    if (position) {
+      window.setTimeout(() => mapRef.current?.setView([position.latitude, position.longitude], 6, { animate: false }), 180);
+    }
     window.setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
   };
   useEffect(() => {
@@ -213,6 +217,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       position ? [position.latitude, position.longitude] : [35, 17],
       position ? 6 : 3,
     );
+    mapRef.current = map;
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 18,
@@ -391,7 +396,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     };
     void drawTracks();
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
-    return () => { controller.abort(); window.clearTimeout(timer); map.remove(); };
+    return () => { controller.abort(); window.clearTimeout(timer); map.remove(); mapRef.current = null; };
   }, [position, showRoute, nauticalVisible]);
   return <div className={`sea-map-wrap${mapExpanded ? ' is-expanded' : ''}`}><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών, προβλεπόμενη πορεία και προαιρετικά ναυτικά σημεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} /><div className="sea-map-actions"><button type="button" className={`sea-nautical-toggle${nauticalVisible ? ' active' : ''}`} onClick={() => setNauticalVisible((visible) => !visible)} aria-pressed={nauticalVisible}><span className="sea-nautical-toggle-dot" />{nauticalVisible ? 'Ναυτικά σημεία ενεργά' : 'Ναυτικά σημεία'}</button><button type="button" className="sea-map-expand" onClick={() => void toggleMapExpanded()} aria-pressed={mapExpanded}>{mapExpanded ? '↙ Επαναφορά' : '↗ Πλήρης οθόνη'}</button></div>{nauticalVisible && <div className="sea-nautical-note">Φάροι · σημαντήρες · αγκυροβόλια · σημεία ναυσιπλοΐας · ακτίνα {position ? navigationContext(position.latitude, position.longitude).radiusNm : 100} ν.μ.</div>}{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div><div><i className="sea-legend-line nautical" /><span><strong>Ναυτικά σημεία</strong><small>προαιρετικό OpenSeaMap επίπεδο</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
 }function ExternalVesselPosition() {
