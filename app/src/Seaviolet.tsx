@@ -328,7 +328,19 @@ export function Seaviolet() {
   };
   const shipClock = offset === null ? 'Επίλεξε UTC ζώνη του πλοίου' : clock(now,offset)+' (UTC'+(offset>=0?'+':'')+offset+')';
   const difference = offset === null ? 'Απαιτείται η ζώνη ώρας του πλοίου' : (offset-greeceOffset(now) === 0 ? 'Ίδια ώρα με Ελλάδα' : Math.abs(offset-greeceOffset(now))+' ώρες '+(offset>greeceOffset(now)?'μπροστά':'πίσω')+' από Ελλάδα');
+  const vesselMovement = position ? [
+    position.speedKnots != null ? `${position.speedKnots.toFixed(1)} kn` : '',
+    position.course != null ? `πορεία ${Math.round(position.course)}°` : '',
+  ].filter(Boolean).join(' · ') : '';
+  const vesselAction = !position ? 'Αναμονή για επιβεβαιωμένο στίγμα' : stale ? 'Η τελευταία θέση χρειάζεται ανανέωση' : position.speedKnots != null && position.speedKnots < 1 ? 'Σε στάση ή με πολύ χαμηλή ταχύτητα' : position.destination ? `Πλέει προς ${position.destination}` : 'Πλέει με ενεργό στίγμα AIS';
+  const vesselActionDetail = !position ? 'Η καρτέλα θα ενημερωθεί μόλις φτάσει νέα αναφορά από τη συνδεδεμένη ροή AIS.' : stale ? `Το τελευταίο στίγμα λήφθηκε ${ageLabel}.` : vesselMovement || 'Η συνδεδεμένη ροή επιβεβαιώνει τη θέση του πλοίου.';
   const vessel = <section className="sea-card sea-vessel"><div className="sea-card-heading"><span className="sea-card-icon"><Ship size={19}/></span><div><span className="sea-eyebrow">ΤΙ ΚΑΝΕΙ ΤΟ ΠΛΟΙΟ</span><h2>SEAVIOLET</h2></div><span className="sea-availability">{position ? `${ageLabel}${stale ? ' · παλιό' : ''}` : 'Αναμονή στίγματος AIS'}</span></div>
+    <div className={`sea-vessel-hero ${position && !stale ? 'is-live' : 'is-muted'}`}>
+      <div className="sea-vessel-hero-top"><span className="sea-vessel-live"><span className="sea-vessel-status-dot" />{position && !stale ? 'ΖΩΝΤΑΝΗ ΕΙΚΟΝΑ' : position ? 'ΠΑΛΙΑ ΚΑΤΑΓΡΑΦΗ' : 'ΑΝΑΜΟΝΗ AIS'}</span><span className="sea-vessel-age">{position ? ageLabel : 'χωρίς στίγμα'}</span></div>
+      <strong>{vesselAction}</strong>
+      <p>{vesselActionDetail}</p>
+      <div className="sea-vessel-route" aria-label="Διαδρομή ταξιδιού"><span>Λεμεσός</span><ArrowRight size={14}/><span>Νεάπολη</span><ArrowRight size={14}/><span>{position?.destination || 'KAOMBO NORTE'}</span></div>
+    </div>
     {vesselFields.identity && <div className="sea-identity">Δεξαμενόπλοιο αργού πετρελαίου · σημαία Μάλτας · κατασκευή 2018</div>}
     {vesselFields.technical && <div className="sea-identity">IMO 9790983 · MMSI 248554000 · διακριτικό 9HA4701</div>}
     <div className="sea-vessel-grid">
