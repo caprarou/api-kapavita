@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { Anchor, ArrowRight, Clock3, Heart, MapPin, MessageCircle, Radio, ShieldCheck, Ship, X } from 'lucide-react';
 import './Seaviolet.css';
+import { defaultVesselFilters, vesselFilterDefinitions, type VesselFilterConfig } from './adminPolicy';
 
 type View = 'family' | 'crew';
 type Context = 'Εν πλω' | 'Αγκυροβολημένο' | 'Άφιξη' | 'Αναχώρηση' | 'Νύχτα';
@@ -28,7 +29,7 @@ type Position = { mmsi: number; latitude: number; longitude: number; observedAt:
 type VesselFields = Record<string, boolean>;
 const defaultVesselFields: VesselFields = { identity:true, technical:true, status:true, destination:true, course:true, clock:true, position:true, route:true, stops:true, source:true };
 const templates = ['Καλημέρα από…', 'Χαιρετισμούς από…', 'Όλα καλά από…', 'Καλή θάλασσα από…', 'Μια καληνύχτα από…', 'Με τον νου στο σπίτι από…', 'Στέλνω έναν χαιρετισμό από…'];
-const seaQuotes = [{text:'Στην πλώρη ανοίγει ο ορίζοντας· κράτα ήσυχο το τιμόνι.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Ο πόντος δεν υπόσχεται δρόμο· ζητά να τον διαβάσεις.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Όταν πέσει η νύχτα, η γέφυρα μετρά χρόνο, φώτα και σιωπή.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Το ταξίδι συνεχίζεται με μικρές διορθώσεις και καθαρό βλέμμα.',author:'Ελεύθερη απόδοση σε ύφος Ν. Καββαδία',work:'Δεν είναι αυτούσιο απόσπασμα',year:'2026'},{text:'Η θάλασσα ανοίγει χώρο σε όποιον ξέρει να περιμένει.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Ἐπὶ οἴνοπα πόντον',author:'Όμηρος',work:'Οδύσσεια',year:'περ. 8ος αι. π.Χ.'}];
+const seaQuotes: Array<{text:string;author:string;work:string;year:string;translation?:string}> = [{text:'Στην πλώρη ανοίγει ο ορίζοντας· κράτα ήσυχο το τιμόνι.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Ο πόντος δεν υπόσχεται δρόμο· ζητά να τον διαβάσεις.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Όταν πέσει η νύχτα, η γέφυρα μετρά χρόνο, φώτα και σιωπή.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Το ταξίδι συνεχίζεται με μικρές διορθώσεις και καθαρό βλέμμα.',author:'Ελεύθερη απόδοση σε ύφος Ν. Καββαδία',work:'Δεν είναι αυτούσιο απόσπασμα',year:'2026'},{text:'Η θάλασσα ανοίγει χώρο σε όποιον ξέρει να περιμένει.',author:'Liakos εν πλω',work:'Πρωτότυπη φράση',year:'2026'},{text:'Ἐπὶ οἴνοπα πόντον',author:'Όμηρος',work:'Οδύσσεια',year:'περ. 8ος αι. π.Χ.',translation:'Πάνω στον κρασάτο, σκοτεινόχρωμο πόντο.'}];
 type Region = { name: string; phrase: string };
 const regionGroups: { label: string; entries: Region[] }[] = [
   { label:'Ελλάδα & ανατολική Μεσόγειος', entries:[
@@ -198,17 +199,26 @@ function addTimedRouteSegments(
     start = end;
   }
 }
-function VesselMap({ position, showRoute }: { position: Position | null; showRoute: boolean }) {
+function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindowChange }: { position: Position | null; showRoute: boolean; filters: VesselFilterConfig; historyWindow: string; onHistoryWindowChange: (value:string)=>void }) {
   const element = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const viewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
   const nauticalLayerRef = useRef<L.TileLayer | null>(null);
   const securityLayerRef = useRef<L.TileLayer | null>(null);
   const nauticalRadiusRef = useRef<L.Circle | null>(null);
+  const routeFilter = filters.routeLayers ?? defaultVesselFilters.routeLayers;
+  const contextFilter = filters.contextLayers ?? defaultVesselFilters.contextLayers;
+  const historyFilter = filters.historyWindow ?? defaultVesselFilters.historyWindow;
+  const routeLayerOptions = routeFilter.options.length ? routeFilter.options : defaultVesselFilters.routeLayers.options;
+  const visibleRouteLayers = routeFilter.enabled ? routeLayerOptions : defaultVesselFilters.routeLayers.options;
+  const [selectedRouteLayers, setSelectedRouteLayers] = useState<string[]>(visibleRouteLayers);
   const [nauticalVisible, setNauticalVisible] = useState(false);
   const [securityVisible, setSecurityVisible] = useState(false);
   const [greekMapVisible, setGreekMapVisible] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  useEffect(() => { setSelectedRouteLayers(visibleRouteLayers); }, [visibleRouteLayers.join(',')]);
+  const routeLayerIsVisible = (key: string) => !routeFilter.enabled || selectedRouteLayers.includes(key);
+  const contextLayerIsAvailable = (key: string) => !contextFilter.enabled || contextFilter.options.includes(key);
   const toggleMapExpanded = async () => {
     const wrapper = element.current?.parentElement;
     try {
@@ -261,6 +271,10 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const projectedColor = '#d39a3b';
     const boundsPoints: RoutePoint[] = [];
     const actualLines: L.Polyline[] = [];
+    const showActual = routeLayerIsVisible('actual');
+    const showReconstructed = routeLayerIsVisible('reconstructed');
+    const showProjected = routeLayerIsVisible('projected');
+    const showStops = routeLayerIsVisible('stops');
     const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string, arrows = false) => {
       if (points.length < 2) return;
       if (!dashArray) {
@@ -302,7 +316,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       { point: [34.67, 33.04], label: 'Λιμένας Λεμεσού · σημείο αναχώρησης' },
       { point: [36.507841, 23.059025], label: 'Νεάπολη Πελοποννήσου · σημείο αναφοράς' },
     ];
-    const anchorMarkers = anchors.map(({ point, label }) => {
+    const anchorMarkers = showStops ? anchors.map(({ point, label }) => {
       const marker = L.marker(point, {
         icon: L.divIcon({
           className: 'anchor-map-icon',
@@ -312,8 +326,8 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
         }),
       }).addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -12], sticky: true, className: 'sea-map-tooltip' });
       return { point, label, marker };
-    });
-    L.marker(destination, {
+    }) : [];
+    showStops && L.marker(destination, {
       icon: L.divIcon({
         className: 'destination-map-icon',
         html: '<span>◆</span>',
@@ -331,7 +345,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const controller = new AbortController();
     const drawTracks = async () => {
       try {
-        const historyData = await fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+        const historyData = await fetch(`/api/v1/vessel/seaviolet/history?hours=${historyWindow === '24h' ? 24 : historyWindow === '30d' ? 720 : 168}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null);
         const historyPoints: Position[] = (historyData?.points ?? [])
           .map((item: any) => validPosition({ ...item, mmsi: historyData?.mmsi ?? 248554000 }))
           .filter((item: Position | null): item is Position => Boolean(item))
@@ -345,7 +359,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           vesselMarker.setIcon(vesselIcon(movementCourse));
           vesselMarker.bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(movementCourse)}° · υπολογισμός από τα δύο τελευταία AIS στίγματα`);
         }
-        historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
+        if (showActual) historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
           L.circleMarker(toRoutePoint(item), { radius: 6.5, color: '#fff', weight: 2.4, fillColor: actualColor, fillOpacity: 1 })
             .addTo(map).bindTooltip(`AIS · ${dateGreece(new Date(item.observedAt))}`, { direction: 'top', offset: [0, -5] });
         });
@@ -365,6 +379,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
         });
         const departure: RoutePoint = [34.67, 33.04];
         const reconstructed = async (from: RoutePoint, to: RoutePoint, fromLabel: string, toLabel: string, fromTime?: string, toTime?: string) => {
+          if (!showReconstructed) return;
           const params = new URLSearchParams({ fromLatitude: String(from[0]), fromLongitude: String(from[1]), toLatitude: String(to[0]), toLongitude: String(to[1]) });
           const data = await fetch(`/api/v1/vessel/seaviolet/route?${params.toString()}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
           const route = safeRoutePoints(data?.route);
@@ -388,14 +403,14 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
             const distance = nauticalMiles(from, to);
             const hours = Math.max(0, (new Date(after.observedAt).getTime() - new Date(before.observedAt).getTime()) / 3600000);
             const actual = hours <= 2 && distance <= 80;
-            if (actual) {
+            if (actual && showActual) {
               addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`, i % 12 === 1);
-            } else {
+            } else if (showReconstructed) {
               await reconstructed(from, to, dateGreece(new Date(before.observedAt)), dateGreece(new Date(after.observedAt)), before.observedAt, after.observedAt);
             }
           }
           const current = position ? toRoutePoint(position) : historyPoints.length ? toRoutePoint(historyPoints[historyPoints.length - 1]) : null;
-          if (current) {
+          if (current && showProjected) {
             const routeData = await fetch(`/api/v1/vessel/seaviolet/route?latitude=${current[0]}&longitude=${current[1]}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
             const routedProjected = safeRoutePoints(routeData?.projected);
             if (routedProjected.length > 1) {
@@ -418,32 +433,32 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     void drawTracks();
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
     return () => { const center = map.getCenter(); viewRef.current = { center: [center.lat, center.lng], zoom: map.getZoom() }; controller.abort(); window.clearTimeout(timer); map.remove(); mapRef.current = null; nauticalLayerRef.current = null; nauticalRadiusRef.current = null; securityLayerRef.current = null; };
-  }, [position, showRoute, greekMapVisible]);
+  }, [position, showRoute, greekMapVisible, historyWindow, selectedRouteLayers.join(','), routeFilter.enabled, contextFilter.enabled, contextFilter.options.join(',')]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (nauticalLayerRef.current) { map.removeLayer(nauticalLayerRef.current); nauticalLayerRef.current = null; }
     if (nauticalRadiusRef.current) { map.removeLayer(nauticalRadiusRef.current); nauticalRadiusRef.current = null; }
-    if (nauticalVisible) {
+    if (nauticalVisible && contextLayerIsAvailable('nautical')) {
       nauticalLayerRef.current = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { attribution: '© OpenSeaMap contributors', maxZoom: 18, opacity: 0.88, zIndex: 300 }).addTo(map);
       if (position) {
         const context = navigationContext(position.latitude, position.longitude);
         nauticalRadiusRef.current = L.circle([position.latitude, position.longitude], { radius: context.radiusNm * 1852, color: '#147f72', weight: 1.5, dashArray: '5 7', opacity: 0.6, fillColor: '#147f72', fillOpacity: 0.035, interactive: false }).addTo(map);
       }
     }
-  }, [nauticalVisible, position]);
+  }, [nauticalVisible, position, contextFilter.enabled, contextFilter.options.join(',')]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (securityLayerRef.current) { map.removeLayer(securityLayerRef.current); securityLayerRef.current = null; }
-    if (securityVisible) {
+    if (securityVisible && contextLayerIsAvailable('security')) {
       securityLayerRef.current = L.tileLayer.wms('https://ows.emodnet-humanactivities.eu/wms', {
         layers: 'militaryareaspoly,munitionspoly', format: 'image/png', transparent: true,
         version: '1.3.0', attribution: '© EMODnet Human Activities', opacity: 0.58, zIndex: 260,
       }).addTo(map);
     }
-  }, [securityVisible, position]);
-  return <div className={`sea-map-wrap${mapExpanded ? ' is-expanded' : ''}`}><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών, προβλεπόμενη πορεία και προαιρετικά ναυτικά σημεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} /><div className="sea-map-actions"><button type="button" className="sea-map-expand" onClick={() => void toggleMapExpanded()} aria-pressed={mapExpanded}>{mapExpanded ? '↙ Επαναφορά' : '↗ Πλήρης οθόνη'}</button></div><div className="sea-map-bottom-menu" aria-label="Επίπεδα χάρτη"><div className="sea-map-bottom-heading"><strong>Επίπεδα χάρτη</strong><span>Πρόσθετες πληροφορίες για την περιοχή του πλοίου</span></div><button type="button" className={`sea-map-layer-row${nauticalVisible ? ' active' : ''}`} onClick={() => setNauticalVisible((visible) => !visible)} aria-pressed={nauticalVisible}><span className="sea-nautical-toggle-dot" /><span><strong>Ναυτικά σημεία</strong><small>Φάροι, σημαντήρες, αγκυροβόλια και σημεία ναυσιπλοΐας · ακτίνα {position ? navigationContext(position.latitude, position.longitude).radiusNm : 100} ν.μ.</small></span><em>{nauticalVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button><button type="button" className={`sea-map-layer-row${greekMapVisible ? ' active' : ''}`} onClick={() => setGreekMapVisible((visible) => !visible)} aria-pressed={greekMapVisible}><span className="sea-nautical-toggle-dot greek">Ελ</span><span><strong>Ελληνικές ονομασίες</strong><small>Δοκιμή OpenMapTiles · όπου υπάρχει ελληνική μετάφραση</small></span><em>{greekMapVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button><button type="button" className={`sea-map-layer-row${securityVisible ? ' active' : ''}`} onClick={() => setSecurityVisible((visible) => !visible)} aria-pressed={securityVisible}><span className="sea-nautical-toggle-dot security">!</span><span><strong>Ασφάλεια &amp; κίνδυνοι</strong><small>EMODnet · στρατιωτικές περιοχές και σημεία πυρομαχικών</small></span><em>{securityVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button><p>{securityVisible ? 'Ενημερωτικό επίπεδο EMODnet· δεν αποτελεί οδηγία ναυσιπλοΐας ή ζώνη απαγόρευσης.' : 'Το μενού μπορεί να εμπλουτιστεί αργότερα με καιρό, προειδοποιήσεις και άλλα επίπεδα δεδομένων.'}</p></div>{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div><div><i className="sea-legend-line nautical" /><span><strong>Ναυτικά σημεία</strong><small>προαιρετικό OpenSeaMap επίπεδο</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
+  }, [securityVisible, position, contextFilter.enabled, contextFilter.options.join(',')]);
+  return <div className={`sea-map-wrap${mapExpanded ? ' is-expanded' : ''}`}><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών, προβλεπόμενη πορεία και προαιρετικά ναυτικά σημεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} /><div className="sea-map-actions"><button type="button" className="sea-map-expand" onClick={() => void toggleMapExpanded()} aria-pressed={mapExpanded}>{mapExpanded ? '↙ Επαναφορά' : '↗ Πλήρης οθόνη'}</button></div><div className="sea-map-bottom-menu" aria-label="Επίπεδα χάρτη"><div className="sea-map-bottom-heading"><strong>Επίπεδα και φίλτρα χάρτη</strong><span>Ο διαχειριστής ορίζει ποιες επιλογές είναι διαθέσιμες</span></div>{historyFilter.enabled && <label className="sea-map-filter-control"><span>Ιστορικό διαδρομής</span><select value={historyWindow} onChange={e=>onHistoryWindowChange(e.target.value)}>{historyFilter.options.map(option=><option key={option} value={option}>{vesselFilterDefinitions.historyWindow.options[option as keyof typeof vesselFilterDefinitions.historyWindow.options] ?? option}</option>)}</select></label>}{routeFilter.enabled && <div className="sea-map-route-filter"><span>Τμήματα διαδρομής</span><div>{routeLayerOptions.map(option=><button type="button" key={option} className={selectedRouteLayers.includes(option)?'selected':''} onClick={()=>setSelectedRouteLayers(current=>current.includes(option)?(current.length>1?current.filter(item=>item!==option):current):[...current,option])}>{vesselFilterDefinitions.routeLayers.options[option as keyof typeof vesselFilterDefinitions.routeLayers.options] ?? option}</button>)}</div></div>}{contextLayerIsAvailable('nautical') && <button type="button" className={`sea-map-layer-row${nauticalVisible ? ' active' : ''}`} onClick={() => setNauticalVisible((visible) => !visible)} aria-pressed={nauticalVisible}><span className="sea-nautical-toggle-dot" /><span><strong>Ναυτικά σημεία</strong><small>Φάροι, σημαντήρες, αγκυροβόλια και σημεία ναυσιπλοΐας · ακτίνα {position ? navigationContext(position.latitude, position.longitude).radiusNm : 100} ν.μ.</small></span><em>{nauticalVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button>}{contextLayerIsAvailable('greek') && <button type="button" className={`sea-map-layer-row${greekMapVisible ? ' active' : ''}`} onClick={() => setGreekMapVisible((visible) => !visible)} aria-pressed={greekMapVisible}><span className="sea-nautical-toggle-dot greek">Ελ</span><span><strong>Ελληνικές ονομασίες</strong><small>Δοκιμή OpenMapTiles · όπου υπάρχει ελληνική μετάφραση</small></span><em>{greekMapVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button>}{contextLayerIsAvailable('security') && <button type="button" className={`sea-map-layer-row${securityVisible ? ' active' : ''}`} onClick={() => setSecurityVisible((visible) => !visible)} aria-pressed={securityVisible}><span className="sea-nautical-toggle-dot security">!</span><span><strong>Ασφάλεια &amp; κίνδυνοι</strong><small>EMODnet · στρατιωτικές περιοχές και σημεία πυρομαχικών</small></span><em>{securityVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button>}{<p>{securityVisible ? 'Ενημερωτικό επίπεδο EMODnet· δεν αποτελεί οδηγία ναυσιπλοΐας ή ζώνη απαγόρευσης.' : 'Το μενού μπορεί να εμπλουτιστεί αργότερα με καιρό, προειδοποιήσεις και άλλα επίπεδα δεδομένων.'}</p>}</div>{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div><div><i className="sea-legend-line nautical" /><span><strong>Ναυτικά σημεία</strong><small>προαιρετικό OpenSeaMap επίπεδο</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
 }function ExternalVesselPosition() {
   return <div className="sea-external-position"><MapPin size={25}/><div><strong>Δες τη νεότερη θέση στο VesselFinder</strong><p>Η δική μας ροή AIS δεν έχει λάβει ακόμη στίγμα για το SEAVIOLET. Το VesselFinder διαθέτει ανεξάρτητα δεδομένα για τη θέση, τον προορισμό και την εκτιμώμενη άφιξη· άνοιξέ τα απευθείας στην υπηρεσία του.</p><a href="https://www.vesselfinder.com/vessels/details/9790983" target="_blank" rel="noopener noreferrer">Άνοιξε τη σελίδα του SEAVIOLET στο VesselFinder ↗</a><p className="sea-alternative-source">Δεύτερη ανεξάρτητη πηγή: <a href="https://www.myshiptracking.com/vessels/seaviolet-mmsi-248554000-imo-9790983" target="_blank" rel="noopener noreferrer">MyShipTracking ↗</a>. Έλεγξε την ώρα του στίγματος· μπορεί να είναι παλαιότερο.</p></div></div>;
 }
@@ -466,6 +481,8 @@ export function Seaviolet() {
   const [lessonAnswer,setLessonAnswer] = useState<string | null>(null);
   const [position,setPosition] = useState<Position | null>(null);
   const [vesselFields,setVesselFields] = useState<VesselFields>(defaultVesselFields);
+  const [vesselFilters,setVesselFilters] = useState<VesselFilterConfig>(defaultVesselFilters);
+  const [historyWindow,setHistoryWindow] = useState('7d');
   const [offset,setOffset] = useState<number | null>(() => { const n = Number(window.localStorage.getItem('liakos-ship-utc-offset')); return window.localStorage.getItem('liakos-ship-utc-offset') !== null && Number.isInteger(n) && n >= -12 && n <= 14 ? n : null; });
   const [now,setNow] = useState(new Date());
   useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(t); }, []);
@@ -502,7 +519,7 @@ export function Seaviolet() {
     return () => { alive = false; };
   }, []);
   useEffect(() => {
-    fetch('/api/public', { cache:'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d?.vesselFields) setVesselFields((prev) => ({ ...prev, ...d.vesselFields })); }).catch(() => {});
+    fetch('/api/public', { cache:'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d?.vesselFields) setVesselFields((prev) => ({ ...prev, ...d.vesselFields })); if (d?.vesselFilters) setVesselFilters((prev) => ({ ...prev, ...d.vesselFilters })); }).catch(() => {});
     let alive = true;
     const read = async () => { try {
       const response = await fetch('/api/v1/vessel/seaviolet', { cache:'no-store', credentials:'same-origin' });
@@ -511,6 +528,7 @@ export function Seaviolet() {
     void read(); const t = window.setInterval(() => void read(), 60000);
     return () => { alive = false; window.clearInterval(t); };
   }, []);
+  useEffect(() => { const config=vesselFilters.historyWindow; if (config?.enabled && config.options.length && !config.options.includes(historyWindow)) setHistoryWindow(config.options[0]); }, [vesselFilters, historyWindow]);
   const suggestion = position ? seaSuggestion(position.latitude,position.longitude) : null;
   const navContext = position ? navigationContext(position.latitude, position.longitude) : null;
   const ageHours = position ? Math.max(0, (now.getTime()-new Date(position.observedAt).getTime())/3600000) : Infinity;
@@ -563,8 +581,8 @@ export function Seaviolet() {
       {vesselFields.clock && <><div><small>Ώρα Ελλάδας τώρα</small><strong>{clock(now,greeceOffset(now))}</strong></div><div><small>Ώρα πλοίου τώρα</small><strong>{shipClock}</strong><small>{difference}</small></div></>}
     </div>
     {vesselFields.clock && <><label className="sea-label" htmlFor="sea-timezone">Ζώνη ώρας που ακολουθεί το πλοίο (ορίζεται από το πλήρωμα)</label><select id="sea-timezone" className="sea-input" value={offset ?? ''} onChange={e => { const next = e.target.value; setOffset(next === '' ? null : Number(next)); if (next === '') window.localStorage.removeItem('liakos-ship-utc-offset'); else window.localStorage.setItem('liakos-ship-utc-offset',next); }}><option value="">Δεν έχει επιβεβαιωθεί</option>{Array.from({length:27},(_,i)=>i-12).map(v=><option value={v} key={v}>UTC{v>=0?'+':''}{v}</option>)}</select></>}
-    <div className="sea-literary-quote"><span className="sea-eyebrow">ΛΟΓΙΑ ΤΗΣ ΘΑΛΑΣΣΑΣ</span><p>«{seaQuote.text}»</p><small>{seaQuote.author} · {seaQuote.work} · {seaQuote.year} · αλλάζει κάθε 8 ώρες</small></div>
-    {vesselFields.position && <><h3 className="sea-map-title">{position ? `Στίγμα ${ageLabel} · ${exactPositionTime}` : 'Εξωτερική ενημέρωση πλοίου'}</h3>{position ? <VesselMap position={position} showRoute={vesselFields.route !== false}/> : <ExternalVesselPosition/>}</>}
+    <div className="sea-literary-quote"><span className="sea-eyebrow">ΛΟΓΙΑ ΤΗΣ ΘΑΛΑΣΣΑΣ</span><p>«{seaQuote.text}»</p><small>{seaQuote.author} · {seaQuote.work} · {seaQuote.year} · αλλάζει κάθε 8 ώρες{seaQuote.translation && <><br/><span className="sea-quote-translation">({seaQuote.translation})</span></>}</small></div>
+    {vesselFields.position && <><h3 className="sea-map-title">{position ? `Στίγμα ${ageLabel} · ${exactPositionTime}` : 'Εξωτερική ενημέρωση πλοίου'}</h3>{position ? <VesselMap position={position} showRoute={vesselFields.route !== false} filters={vesselFilters} historyWindow={historyWindow} onHistoryWindowChange={setHistoryWindow}/> : <ExternalVesselPosition/>}</>}
     {vesselFields.stops && <p className="sea-explain">Περάσματα και στάσεις: Λιμένας Λεμεσού → Νεάπολη Πελοποννήσου → δηλωμένος προορισμός KAOMBO NORTE.</p>}
     {vesselFields.source && <p className="sea-explain"><Radio size={15}/>{position ? <>Καταγράφηκε {dateGreece(new Date(position.observedAt))} (ώρα Ελλάδας) · πηγή: {position.source}. {stale && 'Το στίγμα είναι παλιό και δεν δείχνει τη σημερινή θέση.'}</> : <>Δεν έχουμε παραλάβει ακόμη έγκυρη αναφορά θέσης AIS για το πλοίο. Η εξωτερική σελίδα του VesselFinder μπορεί να εμφανίζει νεότερα δεδομένα από άλλη πηγή. <a href={vesselUrl} target="_blank" rel="noreferrer">Δες το SEAVIOLET στο MarineTraffic</a> για την τελευταία αναφορά της υπηρεσίας.</>}</p>}
     {vesselFields.clock && <p className="sea-explain">Η ώρα πλοίου είναι η επιλεγμένη ζώνη του πληρώματος, όχι εκτίμηση από τη θέση. Τα σταθερά χαρακτηριστικά έχουν ελεγχθεί σε μητρώο πλοίων.</p>}

@@ -41,6 +41,11 @@ VESSEL_FIELDS = {
  'course': True, 'clock': True, 'position': True, 'route': True,
  'stops': True, 'source': True,
 }
+VESSEL_FILTERS = {
+ 'historyWindow': {'enabled': True, 'options': ['24h','7d','30d']},
+ 'routeLayers': {'enabled': True, 'options': ['actual','reconstructed','projected','stops']},
+ 'contextLayers': {'enabled': True, 'options': ['nautical','security','greek']},
+}
 GRANTS = {'seaviolet:view'}
 ATTEMPTS = {}
 ATTEMPTS_LOCK = Lock()
@@ -89,8 +94,10 @@ def init():
   CREATE TABLE IF NOT EXISTS visits (day TEXT NOT NULL, page TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(day,page));
   CREATE TABLE IF NOT EXISTS seaviolet_greetings (id INTEGER PRIMARY KEY AUTOINCREMENT, created INTEGER NOT NULL, text TEXT NOT NULL, area TEXT NOT NULL DEFAULT 'Χωρίς περιοχή', device TEXT NOT NULL DEFAULT '');
   CREATE INDEX IF NOT EXISTS idx_seaviolet_greetings_created ON seaviolet_greetings(created DESC);
+  CREATE TABLE IF NOT EXISTS vessel_filters (key TEXT PRIMARY KEY, enabled INTEGER NOT NULL, options TEXT NOT NULL);
   """)
   for key, enabled in {**FEATURES, **{f'vessel_field_{k}':v for k,v in VESSEL_FIELDS.items()}}.items(): c.execute('INSERT OR IGNORE INTO flags VALUES (?,?)',(key,int(enabled)))
+  for key, config in VESSEL_FILTERS.items(): c.execute('INSERT OR IGNORE INTO vessel_filters VALUES (?,?,?)',(key,int(config['enabled']),json.dumps(config['options'])))
  os.chmod(DB,0o600)
 def password_hash(password):
  salt=secrets.token_bytes(16)
@@ -115,6 +122,17 @@ def vessel_fields(conn):
 def seaviolet_greetings(conn):
  rows=conn.execute('SELECT text,area,created FROM seaviolet_greetings ORDER BY id DESC LIMIT 5').fetchall()
  return [{'text':row['text'],'area':row['area'],'time':dt.datetime.fromtimestamp(row['created'],dt.timezone.utc).isoformat()} for row in rows]
+def vessel_filters(conn):
+ result={}
+ for key, config in VESSEL_FILTERS.items():
+  row=conn.execute('SELECT enabled,options FROM vessel_filters WHERE key=?',(key,)).fetchone()
+  try: selected=json.loads(row['options']) if row else list(config['options'])
+  except (TypeError,ValueError): selected=list(config['options'])
+  if not isinstance(selected,list): selected=list(config['options'])
+  allowed=[item for item in selected if item in config['options']]
+  if not allowed: allowed=[config['options'][0]]
+  result[key]={'enabled':bool(row['enabled']) if row else bool(config['enabled']),'options':allowed}
+ return result
 def principal(conn,cookie):
  match=re.search(r'(?:^|;\s*)__Host-kv_session=([a-f0-9]{64})(?:;|$)',cookie)
  if not match: return None
@@ -218,7 +236,7 @@ def username_ok(username): return isinstance(username,str) and re.fullmatch(r'[a
 def vessel_history(path):
  if psycopg is None: raise RuntimeError('PostGIS unavailable')
  params=parse_qs(urlsplit(path).query)
- hours=max(1,min(int(params.get('hours',['24'])[0]),168))
+ hours=max(1,min(int(params.get('hours',['24'])[0]),720))
  with psycopg.connect(DATA_DSN) as db:
   rows=db.execute("SELECT observed_at,ST_Y(location),ST_X(location),speed_knots,course,heading,destination,eta,source_id FROM observations.vessel_positions WHERE mmsi=248554000 AND observed_at >= now() - (%s || ' hours')::interval ORDER BY observed_at",(hours,)).fetchall()
  return {'mmsi':248554000,'hours':hours,'points':[{'observedAt':r[0].isoformat(),'latitude':r[1],'longitude':r[2],'speedKnots':r[3],'course':r[4],'heading':r[5],'destination':r[6],'eta':r[7].isoformat() if r[7] else None,'source':r[8]} for r in rows]}
@@ -318,7 +336,7 @@ class Handler(BaseHTTPRequestHandler):
     self.reply(200,{'items':seaviolet_greetings(db)})
    elif path=='/api/public':
     public=flags(db)
-    self.reply(200,{'features':public,'vesselFields':vessel_fields(db),'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
+    self.reply(200,{'features':public,'vesselFields':vessel_fields(db),'vesselFilters':vessel_filters(db),'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
    elif path=='/api/session':
     self.reply(200,{'user':user_info(user) if user else None,'csrf':user['csrf'] if user else None})
    elif path=='/api/v1/air/eea':
@@ -339,7 +357,7 @@ class Handler(BaseHTTPRequestHandler):
     if not user or user['role']!='admin':self.reply(403,{'error':'Πρόσβαση διαχειριστή απαιτείται.'});return
     users=[{'id':row['id'],'username':row['username'],'role':row['role'],'grants':json.loads(row['grants']),'enabled':bool(row['enabled']),'lastLogin':row['last_login']} for row in db.execute('SELECT * FROM users ORDER BY id')]
     logs=[dict(row) for row in db.execute('SELECT at,actor,action,detail FROM audit ORDER BY id DESC LIMIT 30')]
-    self.reply(200,{'features':flags(db),'vesselFields':vessel_fields(db),'users':users,'audit':logs,'status':server_status(),'statistics':user_statistics(db),'storage':storage_inventory()})
+    self.reply(200,{'features':flags(db),'vesselFields':vessel_fields(db),'vesselFilters':vessel_filters(db),'users':users,'audit':logs,'status':server_status(),'statistics':user_statistics(db),'storage':storage_inventory()})
    else:self.reply(404,{'error':'Δεν βρέθηκε.'})
  def do_POST(self):self.mutate()
  def do_PUT(self):self.mutate()
@@ -417,6 +435,19 @@ class Handler(BaseHTTPRequestHandler):
     audit(db,user['username'],'password-changed')
     self.reply(200,{'ok':True});return
    if user['role']!='admin':self.reply(403,{'error':'Μόνο ο διαχειριστής μπορεί να αλλάξει ρυθμίσεις.'});return
+   if path=='/api/admin/vessel-filters' and self.command=='PUT':
+    values=payload.get('vesselFilters')
+    if not isinstance(values,dict) or set(values)!=set(VESSEL_FILTERS):self.reply(400,{'error':'Μη έγκυρες επιλογές φίλτρων πλοίου.'});return
+    normalized={}
+    for key, config in VESSEL_FILTERS.items():
+     item=values.get(key)
+     options=item.get('options') if isinstance(item,dict) else None
+     if not isinstance(item,dict) or type(item.get('enabled')) is not bool or not isinstance(options,list) or not options or any(option not in config['options'] for option in options):
+      self.reply(400,{'error':'Κάθε φίλτρο πρέπει να έχει έγκυρη ενεργοποίηση και τουλάχιστον μία επιλογή.'});return
+     normalized[key]={'enabled':item['enabled'],'options':list(dict.fromkeys(options))}
+    for key,item in normalized.items(): db.execute('UPDATE vessel_filters SET enabled=?,options=? WHERE key=?',(int(item['enabled']),json.dumps(item['options']),key))
+    audit(db,user['username'],'vessel-filters-updated',','.join(k for k,v in normalized.items() if v['enabled']))
+    self.reply(200,{'vesselFilters':vessel_filters(db)});return
    if path=='/api/admin/vessel-fields' and self.command=='PUT':
     values=payload.get('vesselFields')
     if not isinstance(values,dict) or set(values)!=set(VESSEL_FIELDS) or not all(type(v) is bool for v in values.values()):self.reply(400,{'error':'Μη έγκυρες επιλογές εμφάνισης πλοίου.'});return
