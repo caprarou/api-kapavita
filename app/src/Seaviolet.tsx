@@ -563,10 +563,10 @@ export function Seaviolet() {
   const vessel = <section className="sea-card sea-vessel"><div className="sea-card-heading"><span className="sea-card-icon"><Ship size={19}/></span><div><span className="sea-eyebrow">ΤΙ ΚΑΝΕΙ ΤΟ ΠΛΟΙΟ</span><h2>SEAVIOLET</h2></div><span className="sea-availability">{position ? `${ageLabel}${stale ? ' · παλιό' : ''}` : 'Αναμονή στίγματος AIS'}</span></div>
     <div className={`sea-vessel-hero ${position && !stale ? 'is-live' : 'is-muted'}`}>
       <div className="sea-vessel-hero-top"><span className="sea-vessel-live"><span className="sea-vessel-status-dot" />{position && !stale ? 'ΖΩΝΤΑΝΗ ΕΙΚΟΝΑ' : position ? 'ΠΑΛΙΑ ΚΑΤΑΓΡΑΦΗ' : 'ΑΝΑΜΟΝΗ AIS'}</span><span className="sea-vessel-age">{position ? ageLabel : 'χωρίς στίγμα'}</span></div>
+      {navContext && <div className="sea-vessel-area-context"><MapPin size={15}/><span><small>ΘΑΛΑΣΣΙΑ ΠΕΡΙΟΧΗ</small><strong>{navContext.description}</strong><em>{navContext.area} · ενημέρωση από το τελευταίο AIS στίγμα</em></span></div>}
       <strong>{vesselAction}</strong>
       <div className="sea-vessel-destination"><span>{vesselDestination}</span><small>{vesselDestinationContext}</small></div>
       <p>{vesselActionDetail}</p>
-      {navContext && <div className="sea-vessel-area-context"><MapPin size={15}/><span><small>ΘΑΛΑΣΣΙΑ ΠΕΡΙΟΧΗ</small><strong>{navContext.description}</strong><em>{navContext.area} · ενημέρωση από το τελευταίο AIS στίγμα</em></span></div>}
       <div className="sea-vessel-route" aria-label="Διαδρομή ταξιδιού"><span>Λεμεσός</span><ArrowRight size={14}/><span>Νεάπολη</span><ArrowRight size={14}/><span>{vesselDestination}</span></div>
     </div>
     {vesselFields.identity && <div className="sea-identity">Δεξαμενόπλοιο αργού πετρελαίου · σημαία Μάλτας · κατασκευή 2018</div>}
