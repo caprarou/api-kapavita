@@ -257,7 +257,7 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
       maxZoom: 18,
     });
     baseLayer.addTo(map);
-    if (greekMapVisible) {
+    if (greekMapVisible && contextLayerIsAvailable('greek')) {
       void loadGreekMapStyle().then((style) => {
         if (!mapRef.current || mapRef.current !== map) return;
         baseLayer.removeFrom(map);
