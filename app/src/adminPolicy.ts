@@ -17,7 +17,7 @@ export const vesselFieldLabels: Record<string,string> = {
 
 export const vesselFilterDefinitions = {
  historyWindow:{label:'Χρονικό εύρος διαδρομής',description:'Πόσο πίσω αναζητά η δημόσια καρτέλα ιστορικά AIS στίγματα.',options:{'24h':'Τελευταίες 24 ώρες','7d':'Τελευταίες 7 ημέρες','30d':'Τελευταίες 30 ημέρες'}},
- routeLayers:{label:'Στρώματα διαδρομής',description:'Ποια τμήματα της διαδρομής μπορεί να εμφανίζει και να κρύβει ο χρήστης.',options:{actual:'Επιβεβαιωμένα AIS',reconstructed:'Θεωρητική ανακατασκευή κενών',projected:'Προβλεπόμενη πορεία',stops:'Περάσματα, λιμάνια και στάσεις'}},
+ routeLayers:{label:'Ορατά τμήματα διαδρομής',description:'Ποια τμήματα της διαδρομής θα εμφανίζονται στον δημόσιο χάρτη. Η ρύθμιση γίνεται μόνο από τη διαχείριση.',options:{actual:'Επιβεβαιωμένα AIS',reconstructed:'Θεωρητική ανακατασκευή κενών',projected:'Προβλεπόμενη πορεία',stops:'Περάσματα, λιμάνια και στάσεις'}},
  contextLayers:{label:'Πρόσθετα επίπεδα χάρτη',description:'Ποια βοηθητικά επίπεδα μπορεί να ενεργοποιεί ο χρήστης πάνω από τον χάρτη.',options:{nautical:'Ναυτικά σημεία',security:'Ασφάλεια και κίνδυνοι',greek:'Ελληνικές ονομασίες'}},
 } as const;
 export type VesselFilterConfig = Record<string,{enabled:boolean;options:string[]}>;
