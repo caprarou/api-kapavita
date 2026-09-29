@@ -442,11 +442,10 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
       const createTile = nauticalLayerAny.createTile.bind(nauticalLayerAny);
       nauticalLayerAny.createTile = ((coords: L.Coords, done: L.DoneCallback) => {
         const tile = createTile(coords, done) as HTMLImageElement;
-        // The seamark layer is a transparent raster overlay. Scale only its tiles
-        // so symbols stay legible on the compact map without moving the basemap.
-        (tile.style as any).scale = mapExpanded ? '1.30' : '1.20';
-        tile.style.transformOrigin = 'center';
-        tile.style.filter = 'contrast(1.12) saturate(1.08)';
+        // Keep the raster tile at its native geometry. Scaling a whole tile
+        // moves seamarks away from their charted coordinates when the map zooms.
+        // Contrast and saturation improve readability without changing position.
+        tile.style.filter = 'contrast(1.14) saturate(1.10) drop-shadow(0 0 0.35px rgba(255,255,255,.72))';
         return tile;
       }) as any;
       nauticalLayerRef.current = nauticalLayer.addTo(map);
