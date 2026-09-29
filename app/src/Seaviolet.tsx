@@ -183,9 +183,9 @@ function addTimedRouteSegments(
 function VesselMap({ position, showRoute }: { position: Position | null; showRoute: boolean }) {
   const element = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const viewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
   const nauticalLayerRef = useRef<L.TileLayer | null>(null);
   const nauticalRadiusRef = useRef<L.Circle | null>(null);
-  const suppressAutoFitRef = useRef(false);
   const [nauticalVisible, setNauticalVisible] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const toggleMapExpanded = async () => {
@@ -204,7 +204,6 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       setMapExpanded((expanded) => !expanded);
     }
     if (position) {
-      suppressAutoFitRef.current = true;
       window.setTimeout(() => mapRef.current?.setView([position.latitude, position.longitude], 6, { animate: false }), 180);
     }
     window.setTimeout(() => { window.dispatchEvent(new Event('resize')); mapRef.current?.invalidateSize({ animate: false }); }, 160);
@@ -218,10 +217,9 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
   useEffect(() => {
     if (!element.current) return;
     const destination: RoutePoint = [-7.2353, 11.2889];
-    const map = L.map(element.current, { zoomControl: true }).setView(
-      position ? [position.latitude, position.longitude] : [35, 17],
-      position ? 6 : 3,
-    );
+    const initialCenter: [number, number] = viewRef.current?.center ?? (position ? [position.latitude, position.longitude] : [35, 17]);
+    const initialZoom = viewRef.current?.zoom ?? (position ? 6 : 3);
+    const map = L.map(element.current, { zoomControl: true }).setView(initialCenter, initialZoom);
     mapRef.current = map;
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
@@ -232,9 +230,6 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const projectedColor = '#d39a3b';
     const boundsPoints: RoutePoint[] = [];
     const actualLines: L.Polyline[] = [];
-    let userInteracted = false;
-    const markUserInteraction = () => { userInteracted = true; };
-    map.on('zoomstart movestart dragstart', markUserInteraction);
     const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string, arrows = false) => {
       if (points.length < 2) return;
       if (!dashArray) {
@@ -387,12 +382,11 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           }
         }
         actualLines.forEach(line => line.bringToFront());
-        if (!userInteracted && !suppressAutoFitRef.current && boundsPoints.length > 1) map.fitBounds(L.latLngBounds(boundsPoints).pad(0.12));
       } catch { /* The map keeps the markers and legend when the route service is unavailable. */ }
     };
     void drawTracks();
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
-    return () => { controller.abort(); window.clearTimeout(timer); map.off('zoomstart movestart dragstart', markUserInteraction); map.remove(); mapRef.current = null; nauticalLayerRef.current = null; nauticalRadiusRef.current = null; suppressAutoFitRef.current = false; };
+    return () => { const center = map.getCenter(); viewRef.current = { center: [center.lat, center.lng], zoom: map.getZoom() }; controller.abort(); window.clearTimeout(timer); map.remove(); mapRef.current = null; nauticalLayerRef.current = null; nauticalRadiusRef.current = null; };
   }, [position, showRoute]);
   useEffect(() => {
     const map = mapRef.current;
