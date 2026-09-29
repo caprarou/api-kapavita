@@ -437,13 +437,25 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
     if (nauticalLayerRef.current) { map.removeLayer(nauticalLayerRef.current); nauticalLayerRef.current = null; }
     if (nauticalRadiusRef.current) { map.removeLayer(nauticalRadiusRef.current); nauticalRadiusRef.current = null; }
     if (nauticalVisible && contextLayerIsAvailable('nautical')) {
-      nauticalLayerRef.current = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { attribution: '© OpenSeaMap contributors', maxZoom: 18, opacity: 0.88, zIndex: 300 }).addTo(map);
+      const nauticalLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { attribution: '© OpenSeaMap contributors', maxZoom: 18, opacity: 0.94, zIndex: 300 });
+      const nauticalLayerAny = nauticalLayer as any;
+      const createTile = nauticalLayerAny.createTile.bind(nauticalLayerAny);
+      nauticalLayerAny.createTile = ((coords: L.Coords, done: L.DoneCallback) => {
+        const tile = createTile(coords, done) as HTMLImageElement;
+        // The seamark layer is a transparent raster overlay. Scale only its tiles
+        // so symbols stay legible on the compact map without moving the basemap.
+        (tile.style as any).scale = mapExpanded ? '1.10' : '1.20';
+        tile.style.transformOrigin = 'center';
+        tile.style.filter = 'contrast(1.12) saturate(1.08)';
+        return tile;
+      }) as any;
+      nauticalLayerRef.current = nauticalLayer.addTo(map);
       if (position) {
         const context = navigationContext(position.latitude, position.longitude);
         nauticalRadiusRef.current = L.circle([position.latitude, position.longitude], { radius: context.radiusNm * 1852, color: '#147f72', weight: 1.5, dashArray: '5 7', opacity: 0.6, fillColor: '#147f72', fillOpacity: 0.035, interactive: false }).addTo(map);
       }
     }
-  }, [nauticalVisible, position, contextFilter.enabled, contextFilter.options.join(',')]);
+  }, [nauticalVisible, position, mapExpanded, contextFilter.enabled, contextFilter.options.join(',')]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
