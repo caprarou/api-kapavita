@@ -96,6 +96,34 @@ function seaSuggestion(lat:number, lon:number) {
   return null;
 }
 type RoutePoint = [number, number];
+const RECENT_FIX_MARKERS = 24;
+function routeBearing(a: RoutePoint, b: RoutePoint) {
+  const rad = Math.PI / 180;
+  const lat1 = a[0] * rad;
+  const lat2 = b[0] * rad;
+  const dLon = (b[1] - a[1]) * rad;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+function addDirectionArrows(map: L.Map, route: RoutePoint[], color: string, maxArrows = 4) {
+  if (route.length < 2) return;
+  const step = Math.max(1, Math.floor((route.length - 1) / (maxArrows + 1)));
+  for (let index = step; index < route.length; index += step) {
+    const before = route[index - 1];
+    const after = route[index];
+    const angle = routeBearing(before, after);
+    L.marker(route[index], {
+      icon: L.divIcon({
+        className: 'route-direction-icon',
+        html: `<span style="color:${color};transform:rotate(${angle}deg)">➤</span>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      }),
+      interactive: false,
+    }).addTo(map);
+  }
+}
 function nauticalMiles(a: RoutePoint, b: RoutePoint) {
   const rad = Math.PI / 180;
   const dLat = (b[0] - a[0]) * rad;
@@ -140,6 +168,7 @@ function addTimedRouteSegments(
     L.polyline(segment, { color, weight: dashArray ? 3 : 4, opacity: 0.94, dashArray, lineCap: 'round' })
       .addTo(map)
       .bindTooltip(`${labels[i]}<br/><strong>${Math.round(distance)} ν.μ.</strong> · περίπου <strong>${formatVoyageTime(hours)}</strong>`, { sticky: true });
+    addDirectionArrows(map, segment, color, 2);
     start = end;
   }
 }
@@ -160,10 +189,11 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const reconstructedColor = '#bd8a45';
     const projectedColor = '#d39a3b';
     const boundsPoints: RoutePoint[] = [];
-    const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string) => {
+    const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string, arrows = false) => {
       if (points.length < 2) return;
       L.polyline(points, { color, weight: dashArray ? 3 : 4, opacity: dashArray ? 0.82 : 0.96, dashArray, lineCap: 'round' })
         .addTo(map).bindTooltip(tooltip, { sticky: true });
+      if (arrows) addDirectionArrows(map, points, color, 3);
       boundsPoints.push(...points);
     };
     const addGapMarker = (point: RoutePoint, label: string) => {
@@ -231,6 +261,10 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           .sort((a: Position, b: Position) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
         if (position && !historyPoints.some(item => item.observedAt === position.observedAt)) historyPoints.push(position);
         historyPoints.sort((a, b) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
+        historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
+          L.circleMarker(toRoutePoint(item), { radius: 3.5, color: '#fff', weight: 1.5, fillColor: actualColor, fillOpacity: 0.95 })
+            .addTo(map).bindTooltip(`AIS · ${dateGreece(new Date(item.observedAt))}`, { direction: 'top', offset: [0, -5] });
+        });
         const durationText = (from?: string, to?: string) => from && to ? formatVoyageTime(Math.max(0, (new Date(to).getTime() - new Date(from).getTime()) / 3600000)) : 'δεν υπολογίζεται';
         anchorMarkers.forEach(({ point, label, marker }) => {
           const nearby = historyPoints.filter(item => nauticalMiles(point, toRoutePoint(item)) <= 12);
@@ -253,7 +287,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           if (route.length < 2) return;
           const distance = segmentDistance(route);
           const duration = fromTime && toTime ? formatVoyageTime(Math.max(0, (new Date(toTime).getTime() - new Date(fromTime).getTime()) / 3600000)) : 'μη διαθέσιμος χρόνος';
-          addLine(route, reconstructedColor, '7 9', `<strong>Θεωρητική θαλάσσια ανακατασκευή</strong><br/>Χωρίς AIS δεδομένα: ${fromLabel} → ${toLabel}<br/><strong>${Math.round(distance)} ν.μ.</strong> · διάστημα ${duration}`);
+          addLine(route, reconstructedColor, '7 9', `<strong>Θεωρητική θαλάσσια ανακατασκευή</strong><br/>Χωρίς AIS δεδομένα: ${fromLabel} → ${toLabel}<br/><strong>${Math.round(distance)} ν.μ.</strong> · διάστημα ${duration}`, true);
           addGapMarker(route[0], `Τέλος προηγούμενου γνωστού σημείου · ${fromLabel}`);
           addGapMarker(route[route.length - 1], `Έναρξη επόμενου γνωστού σημείου · ${toLabel}`);
         };
@@ -271,7 +305,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
             const hours = Math.max(0, (new Date(after.observedAt).getTime() - new Date(before.observedAt).getTime()) / 3600000);
             const actual = hours <= 2 && distance <= 80;
             if (actual) {
-              addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`);
+              addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`, i % 6 === 1);
             } else {
               await reconstructed(from, to, dateGreece(new Date(before.observedAt)), dateGreece(new Date(after.observedAt)), before.observedAt, after.observedAt);
             }
