@@ -207,7 +207,8 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       suppressAutoFitRef.current = true;
       window.setTimeout(() => mapRef.current?.setView([position.latitude, position.longitude], 6, { animate: false }), 180);
     }
-    window.setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
+    window.setTimeout(() => { window.dispatchEvent(new Event('resize')); mapRef.current?.invalidateSize({ animate: false }); }, 160);
+    window.setTimeout(() => mapRef.current?.invalidateSize({ animate: false }), 520);
   };
   useEffect(() => {
     const onFullscreenChange = () => setMapExpanded(Boolean(document.fullscreenElement));
