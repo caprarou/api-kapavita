@@ -357,6 +357,14 @@ class Handler(BaseHTTPRequestHandler):
     device=str(payload.get('device','')).strip()[:120]
     if not text:self.reply(400,{'error':'Το μήνυμα είναι κενό.'});return
     created=int(time.time())
+    raw_time=str(payload.get('time','')).strip()
+    if raw_time:
+     try:
+      parsed=dt.datetime.fromisoformat(raw_time.replace('Z','+00:00'))
+      if parsed.tzinfo is None: parsed=parsed.replace(tzinfo=dt.timezone.utc)
+      candidate=int(parsed.timestamp())
+      if candidate <= int(time.time()) + 600: created=candidate
+     except (TypeError,ValueError,OverflowError): pass
     db.execute('INSERT INTO seaviolet_greetings(created,text,area,device) VALUES (?,?,?,?)',(created,text,area,device))
     self.reply(201,{'items':seaviolet_greetings(db)})
     return
