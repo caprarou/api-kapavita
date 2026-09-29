@@ -174,6 +174,7 @@ function addTimedRouteSegments(
 }
 function VesselMap({ position, showRoute }: { position: Position | null; showRoute: boolean }) {
   const element = useRef<HTMLDivElement>(null);
+  const [nauticalVisible, setNauticalVisible] = useState(false);
   useEffect(() => {
     if (!element.current) return;
     const destination: RoutePoint = [-7.2353, 11.2889];
@@ -185,6 +186,14 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       attribution: '© OpenStreetMap contributors',
       maxZoom: 18,
     }).addTo(map);
+    if (nauticalVisible) {
+      L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+        attribution: '© OpenSeaMap contributors',
+        maxZoom: 18,
+        opacity: 0.88,
+        zIndex: 300,
+      }).addTo(map);
+    }
     const actualColor = '#147fba';
     const reconstructedColor = '#bd8a45';
     const projectedColor = '#d39a3b';
@@ -348,8 +357,8 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     void drawTracks();
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
     return () => { controller.abort(); window.clearTimeout(timer); map.remove(); };
-  }, [position, showRoute]);
-  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών και προβλεπόμενη πορεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} />{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
+  }, [position, showRoute, nauticalVisible]);
+  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών, προβλεπόμενη πορεία και προαιρετικά ναυτικά σημεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} /><button type="button" className={`sea-nautical-toggle${nauticalVisible ? ' active' : ''}`} onClick={() => setNauticalVisible((visible) => !visible)} aria-pressed={nauticalVisible}><span className="sea-nautical-toggle-dot" />{nauticalVisible ? 'Ναυτικά σημεία ενεργά' : 'Ναυτικά σημεία'}</button>{nauticalVisible && <div className="sea-nautical-note">Φάροι · σημαντήρες · αγκυροβόλια · σημεία ναυσιπλοΐας</div>}{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div><div><i className="sea-legend-line nautical" /><span><strong>Ναυτικά σημεία</strong><small>προαιρετικό OpenSeaMap επίπεδο</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
 }function ExternalVesselPosition() {
   return <div className="sea-external-position"><MapPin size={25}/><div><strong>Δες τη νεότερη θέση στο VesselFinder</strong><p>Η δική μας ροή AIS δεν έχει λάβει ακόμη στίγμα για το SEAVIOLET. Το VesselFinder διαθέτει ανεξάρτητα δεδομένα για τη θέση, τον προορισμό και την εκτιμώμενη άφιξη· άνοιξέ τα απευθείας στην υπηρεσία του.</p><a href="https://www.vesselfinder.com/vessels/details/9790983" target="_blank" rel="noopener noreferrer">Άνοιξε τη σελίδα του SEAVIOLET στο VesselFinder ↗</a><p className="sea-alternative-source">Δεύτερη ανεξάρτητη πηγή: <a href="https://www.myshiptracking.com/vessels/seaviolet-mmsi-248554000-imo-9790983" target="_blank" rel="noopener noreferrer">MyShipTracking ↗</a>. Έλεγξε την ώρα του στίγματος· μπορεί να είναι παλαιότερο.</p></div></div>;
 }
