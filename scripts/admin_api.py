@@ -225,13 +225,25 @@ def vessel_history(path):
 
 def vessel_route(path):
  params=parse_qs(urlsplit(path).query)
- try:
-  latitude=float(params.get('latitude',[''])[0]); longitude=float(params.get('longitude',[''])[0])
- except (TypeError,ValueError):
-  raise ValueError('Το τρέχον στίγμα δεν είναι έγκυρο.')
- if not (-90 <= latitude <= 90 and -180 <= longitude <= 180): raise ValueError('Το τρέχον στίγμα δεν είναι έγκυρο.')
+ def number(name):
+  try:return float(params.get(name,[''])[0])
+  except (TypeError,ValueError):return None
  node=shutil.which('node') or '/usr/bin/node'
- script="""
+ from_lat,from_lon,to_lat,to_lon=(number(name) for name in ('fromLatitude','fromLongitude','toLatitude','toLongitude'))
+ if all(value is not None for value in (from_lat,from_lon,to_lat,to_lon)):
+  values=(from_lat,from_lon,to_lat,to_lon)
+  if not (-90 <= from_lat <= 90 and -180 <= from_lon <= 180 and -90 <= to_lat <= 90 and -180 <= to_lon <= 180): raise ValueError('Τα σημεία της ανακατασκευής δεν είναι έγκυρα.')
+  script="""
+import { findOceanPath } from '@arcnautical/maritime-routing';
+const [fromLat, fromLon, toLat, toLon] = process.argv.slice(1).map(Number);
+const route = findOceanPath(fromLat, fromLon, toLat, toLon);
+console.log(JSON.stringify({ route, engine: 'arcnautical-ocean-grid' }));
+"""
+ else:
+  latitude,longitude=number('latitude'),number('longitude')
+  if latitude is None or longitude is None or not (-90 <= latitude <= 90 and -180 <= longitude <= 180): raise ValueError('Το τρέχον στίγμα δεν είναι έγκυρο.')
+  values=(latitude,longitude)
+  script="""
 import { findOceanPath } from '@arcnautical/maritime-routing';
 const [lat, lon] = process.argv.slice(1).map(Number);
 const limassol = [33.04, 34.67];
@@ -244,12 +256,14 @@ const completed = join(leg(limassol, neapoli), leg(neapoli, current));
 const projected = leg(current, destination);
 console.log(JSON.stringify({ completed, projected, destination, engine: 'arcnautical-ocean-grid' }));
 """
- result=subprocess.run([node,'--input-type=module','-e',script,str(latitude),str(longitude)],cwd=str(ROOT/'app'),capture_output=True,text=True,timeout=25,env={**os.environ,'NODE_ENV':'test'})
+ result=subprocess.run([node,'--input-type=module','-e',script,*[str(value) for value in values]],cwd=str(ROOT/'app'),capture_output=True,text=True,timeout=25,env={**os.environ,'NODE_ENV':'test'})
  if result.returncode != 0: raise RuntimeError('Η θαλάσσια δρομολόγηση απέτυχε.')
  lines=[line.strip() for line in result.stdout.splitlines() if line.strip()]
  if not lines: raise RuntimeError('Δεν επιστράφηκε θαλάσσια διαδρομή.')
  data=json.loads(lines[-1])
  def leaflet(coords): return [[float(lat),float(lon)] for lon,lat in coords if abs(float(lat))<=90 and abs(float(lon))<=180]
+ if all(value is not None for value in (from_lat,from_lon,to_lat,to_lon)):
+  return {'route':leaflet(data.get('route',[])),'engine':data.get('engine'),'kind':'theoretical-gap-reconstruction'}
  return {'completed':leaflet(data.get('completed',[])),'projected':leaflet(data.get('projected',[])),'destination':leaflet([data['destination']])[0],'engine':data.get('engine')}
 def copernicus_search(path):
  env=os.environ

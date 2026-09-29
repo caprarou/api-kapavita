@@ -156,7 +156,21 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       attribution: '© OpenStreetMap contributors',
       maxZoom: 18,
     }).addTo(map);
-
+    const actualColor = '#147fba';
+    const reconstructedColor = '#bd8a45';
+    const projectedColor = '#d39a3b';
+    const boundsPoints: RoutePoint[] = [];
+    const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string) => {
+      if (points.length < 2) return;
+      L.polyline(points, { color, weight: dashArray ? 3 : 4, opacity: dashArray ? 0.82 : 0.96, dashArray, lineCap: 'round' })
+        .addTo(map).bindTooltip(tooltip, { sticky: true });
+      boundsPoints.push(...points);
+    };
+    const addGapMarker = (point: RoutePoint, label: string) => {
+      L.circleMarker(point, { radius: 5, color: reconstructedColor, weight: 2, fillColor: '#fffaf1', fillOpacity: 1 })
+        .addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -6] });
+      boundsPoints.push(point);
+    };
     const bearingToDestination = position ? (() => {
       const lat1 = position.latitude * Math.PI / 180;
       const lat2 = destination[0] * Math.PI / 180;
@@ -165,24 +179,24 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
       return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
     })() : 245;
-
     if (position) {
+      const vesselCourse = position.course != null ? position.course : bearingToDestination;
       L.marker([position.latitude, position.longitude], {
         icon: L.divIcon({
           className: 'ship-map-icon',
-          html: `<span style="transform:rotate(${bearingToDestination}deg)">➤</span>`,
+          html: `<span style="transform:rotate(${vesselCourse}deg)">➤</span>`,
           iconSize: [34, 34],
           iconAnchor: [17, 17],
         }),
-      }).addTo(map).bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(bearingToDestination)}°`);
+      }).addTo(map).bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(vesselCourse)}°${position.course == null ? ' · κατεύθυνση προς προορισμό' : ' · COG AIS'}`);
+      boundsPoints.push([position.latitude, position.longitude]);
     }
-
     const anchors: Array<{ point: RoutePoint; label: string }> = [
-      { point: [34.67, 33.04], label: 'Αναχώρηση · Λιμένας Λεμεσού' },
-      { point: [36.51, 23.42], label: 'Πέρασμα · Νεάπολη Πελοποννήσου' },
+      { point: [34.67, 33.04], label: 'Λιμένας Λεμεσού · σημείο αναχώρησης' },
+      { point: [36.51, 23.42], label: 'Νεάπολη Πελοποννήσου · σημείο αναφοράς' },
     ];
-    anchors.forEach(({ point, label }) => {
-      L.marker(point, {
+    const anchorMarkers = anchors.map(({ point, label }) => {
+      const marker = L.marker(point, {
         icon: L.divIcon({
           className: 'anchor-map-icon',
           html: '<span>⚓</span>',
@@ -190,6 +204,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           iconAnchor: [15, 15],
         }),
       }).addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -12], permanent: true });
+      return { point, label, marker };
     });
     L.marker(destination, {
       icon: L.divIcon({
@@ -198,44 +213,95 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
         iconSize: [30, 30],
         iconAnchor: [15, 15],
       }),
-    }).addTo(map).bindTooltip('KAOMBO NORTE · ακριβές δηλωμένο σημείο', { direction: 'top', offset: [0, -12], permanent: true });
+    }).addTo(map).bindTooltip('KAOMBO NORTE · δηλωμένος προορισμός', { direction: 'top', offset: [0, -12], permanent: true });
 
+    const toRoutePoint = (item: Position): RoutePoint => [item.latitude, item.longitude];
+    const safeRoutePoints = (items: unknown): RoutePoint[] => Array.isArray(items)
+      ? items.filter((p: any) => Array.isArray(p) && p.length === 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
+        .map((p: any) => [Number(p[0]), Number(p[1])] as RoutePoint)
+      : [];
+    const segmentDistance = (points: RoutePoint[]) => points.slice(1).reduce((sum, point, index) => sum + nauticalMiles(points[index], point), 0);
     const controller = new AbortController();
-    fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(async () => {
-        const routeData = position
-          ? await fetch(`/api/v1/vessel/seaviolet/route?latitude=${position.latitude}&longitude=${position.longitude}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
-          : null;
-        const routedCompleted: RoutePoint[] = (routeData?.completed ?? [])
-          .filter((p: any) => Array.isArray(p) && p.length === 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
-          .map((p: any) => [Number(p[0]), Number(p[1])] as RoutePoint);
-        const routedProjected: RoutePoint[] = (routeData?.projected ?? [])
-          .filter((p: any) => Array.isArray(p) && p.length === 2 && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])))
-          .map((p: any) => [Number(p[0]), Number(p[1])] as RoutePoint);
-        const speed = Number(position?.speedKnots);
-        const speedKnots = Number.isFinite(speed) && speed > 1 ? speed : 12;
-        const current: RoutePoint | null = position ? [position.latitude, position.longitude] : null;
-        if (showRoute && routedCompleted.length > 1 && current) {
-          addTimedRouteSegments(map, routedCompleted, [[34.67, 33.04], [36.51, 23.42], current], ['Λεμεσός → Νεάπολη', 'Νεάπολη → τρέχον στίγμα'], '#147fba', undefined, speedKnots);
+    const drawTracks = async () => {
+      try {
+        const historyData = await fetch('/api/v1/vessel/seaviolet/history?hours=168', { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+        const historyPoints: Position[] = (historyData?.points ?? [])
+          .map((item: any) => validPosition({ ...item, mmsi: historyData?.mmsi ?? 248554000 }))
+          .filter((item: Position | null): item is Position => Boolean(item))
+          .sort((a: Position, b: Position) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
+        if (position && !historyPoints.some(item => item.observedAt === position.observedAt)) historyPoints.push(position);
+        historyPoints.sort((a, b) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
+        const durationText = (from?: string, to?: string) => from && to ? formatVoyageTime(Math.max(0, (new Date(to).getTime() - new Date(from).getTime()) / 3600000)) : 'δεν υπολογίζεται';
+        anchorMarkers.forEach(({ point, label, marker }) => {
+          const nearby = historyPoints.filter(item => nauticalMiles(point, toRoutePoint(item)) <= 12);
+          if (!nearby.length) {
+            marker.bindPopup(`<strong>${label}</strong><br/><span class="sea-map-popup-muted">Δεν υπάρχουν ακόμη αρκετά AIS δεδομένα για να υπολογιστούν άφιξη, αναχώρηση και παραμονή.</span>`);
+            return;
+          }
+          const arrival = nearby[0];
+          const departure = nearby.length > 1 ? nearby[nearby.length - 1] : null;
+          const duration = durationText(arrival.observedAt, departure?.observedAt);
+          const stopped = nearby.some(item => item.speedKnots != null && item.speedKnots <= 1.5) || (departure && (new Date(departure.observedAt).getTime() - new Date(arrival.observedAt).getTime()) >= 30 * 60 * 1000);
+          const eventTitle = stopped ? 'Αυτόματη αναγνώριση στάσης' : 'Πέρασμα από την περιοχή';
+          marker.bindPopup(`<strong>${label}</strong><br/><span class="sea-map-popup-title">${eventTitle}</span><br/>Άφιξη: <strong>${dateGreece(new Date(arrival.observedAt))}</strong><br/>${departure ? `Αναχώρηση: <strong>${dateGreece(new Date(departure.observedAt))}</strong><br/>Παραμονή: <strong>${duration}</strong>` : 'Αναχώρηση: δεν έχει επιβεβαιωθεί ακόμη'}<br/><small>Υπολογισμός από τα διαθέσιμα AIS στίγματα σε ακτίνα 12 ν.μ.</small>`);
+        });
+        const departure: RoutePoint = [34.67, 33.04];
+        const reconstructed = async (from: RoutePoint, to: RoutePoint, fromLabel: string, toLabel: string, fromTime?: string, toTime?: string) => {
+          const params = new URLSearchParams({ fromLatitude: String(from[0]), fromLongitude: String(from[1]), toLatitude: String(to[0]), toLongitude: String(to[1]) });
+          const data = await fetch(`/api/v1/vessel/seaviolet/route?${params.toString()}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+          const route = safeRoutePoints(data?.route);
+          if (route.length < 2) return;
+          const distance = segmentDistance(route);
+          const duration = fromTime && toTime ? formatVoyageTime(Math.max(0, (new Date(toTime).getTime() - new Date(fromTime).getTime()) / 3600000)) : 'μη διαθέσιμος χρόνος';
+          addLine(route, reconstructedColor, '7 9', `<strong>Θεωρητική θαλάσσια ανακατασκευή</strong><br/>Χωρίς AIS δεδομένα: ${fromLabel} → ${toLabel}<br/><strong>${Math.round(distance)} ν.μ.</strong> · διάστημα ${duration}`);
+          addGapMarker(route[0], `Τέλος προηγούμενου γνωστού σημείου · ${fromLabel}`);
+          addGapMarker(route[route.length - 1], `Έναρξη επόμενου γνωστού σημείου · ${toLabel}`);
+        };
+        if (showRoute) {
+          const first = historyPoints[0];
+          if (first) {
+            const firstPoint = toRoutePoint(first);
+            if (nauticalMiles(departure, firstPoint) > 8) await reconstructed(departure, firstPoint, 'Λεμεσός', 'πρώτο επιβεβαιωμένο AIS', undefined, first.observedAt);
+          }
+          for (let i = 1; i < historyPoints.length; i += 1) {
+            const before = historyPoints[i - 1];
+            const after = historyPoints[i];
+            const from = toRoutePoint(before), to = toRoutePoint(after);
+            const distance = nauticalMiles(from, to);
+            const hours = Math.max(0, (new Date(after.observedAt).getTime() - new Date(before.observedAt).getTime()) / 3600000);
+            const actual = hours <= 2 && distance <= 80;
+            if (actual) {
+              addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`);
+            } else {
+              await reconstructed(from, to, dateGreece(new Date(before.observedAt)), dateGreece(new Date(after.observedAt)), before.observedAt, after.observedAt);
+            }
+          }
+          const current = position ? toRoutePoint(position) : historyPoints.length ? toRoutePoint(historyPoints[historyPoints.length - 1]) : null;
+          if (current) {
+            const routeData = await fetch(`/api/v1/vessel/seaviolet/route?latitude=${current[0]}&longitude=${current[1]}`, { signal: controller.signal, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+            const routedProjected = safeRoutePoints(routeData?.projected);
+            if (routedProjected.length > 1) {
+              const speed = Number(position?.speedKnots);
+              const speedKnots = Number.isFinite(speed) && speed > 1 ? speed : 12;
+              boundsPoints.push(...routedProjected);
+              const projectedCheckpoints: RoutePoint[] = [current, [35.9, -5.5], [20, -14], destination];
+              addTimedRouteSegments(map, routedProjected, projectedCheckpoints, ['Τρέχον στίγμα → Γιβραλτάρ', 'Γιβραλτάρ → Ατλαντικός', 'Ατλαντικός → KAOMBO NORTE'], projectedColor, '3 9', speedKnots);
+              const last = routedProjected.length - 1;
+              const finalDistance = nauticalMiles(routedProjected[last - 1], routedProjected[last]);
+              L.polyline([routedProjected[last - 1], routedProjected[last]], { color: projectedColor, weight: 4, opacity: 0.9, dashArray: '3 9', lineCap: 'round' })
+                .addTo(map)
+                .bindTooltip(`<strong>Προβλεπόμενη πορεία</strong><br/>Προς KAOMBO NORTE · ${Math.round(finalDistance)} ν.μ. · περίπου <strong>${formatVoyageTime(finalDistance / Math.max(1, speedKnots))}</strong>`, { sticky: true });
+            }
+          }
         }
-        if (showRoute && routedProjected.length > 1 && current) {
-          const projectedCheckpoints: RoutePoint[] = [current, [35.9, -5.5], [20, -14], destination];
-          addTimedRouteSegments(map, routedProjected, projectedCheckpoints, ['Τρέχον στίγμα → Γιβραλτάρ', 'Γιβραλτάρ → Ατλαντικός', 'Ατλαντικός → KAOMBO NORTE'], '#d39a3b', '9 8', speedKnots);
-          const last = routedProjected.length - 1;
-          const finalDistance = nauticalMiles(routedProjected[last - 1], routedProjected[last]);
-          L.polyline([routedProjected[last - 1], routedProjected[last]], { color: '#d39a3b', weight: 4, opacity: 0.98, lineCap: 'round' })
-            .addTo(map)
-            .bindTooltip(`Τελικό τμήμα προς KAOMBO NORTE<br/><strong>${Math.round(finalDistance)} ν.μ.</strong> · περίπου <strong>${formatVoyageTime(finalDistance / Math.max(1, speedKnots))}</strong>`, { sticky: true });
-        }
-        const all: RoutePoint[] = routedCompleted.length > 1 ? [...routedCompleted, ...routedProjected] : routedProjected;
-        if (all.length > 1) map.fitBounds(L.latLngBounds(all).pad(0.12));
-      })
-      .catch(() => {});
+        if (boundsPoints.length > 1) map.fitBounds(L.latLngBounds(boundsPoints).pad(0.12));
+      } catch { /* The map keeps the markers and legend when the route service is unavailable. */ }
+    };
+    void drawTracks();
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
     return () => { controller.abort(); window.clearTimeout(timer); map.remove(); };
-  }, [position]);
-  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με διαδρομή που έχει διανυθεί και προβλεπόμενη θαλάσσια πορεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} />{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
+  }, [position, showRoute]);
+  return <div className="sea-map-wrap"><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών και προβλεπόμενη πορεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} />{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
 }function ExternalVesselPosition() {
   return <div className="sea-external-position"><MapPin size={25}/><div><strong>Δες τη νεότερη θέση στο VesselFinder</strong><p>Η δική μας ροή AIS δεν έχει λάβει ακόμη στίγμα για το SEAVIOLET. Το VesselFinder διαθέτει ανεξάρτητα δεδομένα για τη θέση, τον προορισμό και την εκτιμώμενη άφιξη· άνοιξέ τα απευθείας στην υπηρεσία του.</p><a href="https://www.vesselfinder.com/vessels/details/9790983" target="_blank" rel="noopener noreferrer">Άνοιξε τη σελίδα του SEAVIOLET στο VesselFinder ↗</a><p className="sea-alternative-source">Δεύτερη ανεξάρτητη πηγή: <a href="https://www.myshiptracking.com/vessels/seaviolet-mmsi-248554000-imo-9790983" target="_blank" rel="noopener noreferrer">MyShipTracking ↗</a>. Έλεγξε την ώρα του στίγματος· μπορεί να είναι παλαιότερο.</p></div></div>;
 }
@@ -332,14 +398,17 @@ export function Seaviolet() {
     position.speedKnots != null ? `${position.speedKnots.toFixed(1)} kn` : '',
     position.course != null ? `πορεία ${Math.round(position.course)}°` : '',
   ].filter(Boolean).join(' · ') : '';
-  const vesselAction = !position ? 'Αναμονή για επιβεβαιωμένο στίγμα' : stale ? 'Η τελευταία θέση χρειάζεται ανανέωση' : position.speedKnots != null && position.speedKnots < 1 ? 'Σε στάση ή με πολύ χαμηλή ταχύτητα' : position.destination ? `Πλέει προς ${position.destination}` : 'Πλέει με ενεργό στίγμα AIS';
+  const vesselAction = !position ? 'Αναμονή για επιβεβαιωμένο στίγμα' : stale ? 'Η τελευταία θέση χρειάζεται ανανέωση' : position.speedKnots != null && position.speedKnots < 1 ? 'Σε στάση ή με πολύ χαμηλή ταχύτητα' : 'Πλέει προς';
   const vesselActionDetail = !position ? 'Η καρτέλα θα ενημερωθεί μόλις φτάσει νέα αναφορά από τη συνδεδεμένη ροή AIS.' : stale ? `Το τελευταίο στίγμα λήφθηκε ${ageLabel}.` : vesselMovement || 'Η συνδεδεμένη ροή επιβεβαιώνει τη θέση του πλοίου.';
+  const vesselDestination = position?.destination || 'KAOMBO NORTE';
+  const vesselDestinationContext = vesselDestination.toUpperCase().includes('KAOMBO') ? 'Αφρική · Αγκόλα · ανοικτά της Λουάντα' : 'Ήπειρος, χώρα και κοντινή πόλη θα εμφανιστούν όταν επιβεβαιωθούν από την πηγή AIS.';
   const vessel = <section className="sea-card sea-vessel"><div className="sea-card-heading"><span className="sea-card-icon"><Ship size={19}/></span><div><span className="sea-eyebrow">ΤΙ ΚΑΝΕΙ ΤΟ ΠΛΟΙΟ</span><h2>SEAVIOLET</h2></div><span className="sea-availability">{position ? `${ageLabel}${stale ? ' · παλιό' : ''}` : 'Αναμονή στίγματος AIS'}</span></div>
     <div className={`sea-vessel-hero ${position && !stale ? 'is-live' : 'is-muted'}`}>
       <div className="sea-vessel-hero-top"><span className="sea-vessel-live"><span className="sea-vessel-status-dot" />{position && !stale ? 'ΖΩΝΤΑΝΗ ΕΙΚΟΝΑ' : position ? 'ΠΑΛΙΑ ΚΑΤΑΓΡΑΦΗ' : 'ΑΝΑΜΟΝΗ AIS'}</span><span className="sea-vessel-age">{position ? ageLabel : 'χωρίς στίγμα'}</span></div>
       <strong>{vesselAction}</strong>
+      <div className="sea-vessel-destination"><span>{vesselDestination}</span><small>{vesselDestinationContext}</small></div>
       <p>{vesselActionDetail}</p>
-      <div className="sea-vessel-route" aria-label="Διαδρομή ταξιδιού"><span>Λεμεσός</span><ArrowRight size={14}/><span>Νεάπολη</span><ArrowRight size={14}/><span>{position?.destination || 'KAOMBO NORTE'}</span></div>
+      <div className="sea-vessel-route" aria-label="Διαδρομή ταξιδιού"><span>Λεμεσός</span><ArrowRight size={14}/><span>Νεάπολη</span><ArrowRight size={14}/><span>{vesselDestination}</span></div>
     </div>
     {vesselFields.identity && <div className="sea-identity">Δεξαμενόπλοιο αργού πετρελαίου · σημαία Μάλτας · κατασκευή 2018</div>}
     {vesselFields.technical && <div className="sea-identity">IMO 9790983 · MMSI 248554000 · διακριτικό 9HA4701</div>}
