@@ -98,6 +98,7 @@
 .sea-map-wrap:not(.is-expanded) .sea-map-layer-row strong { font-size: 8px; }
 .sea-map-wrap:not(.is-expanded) .sea-map-layer-row em { font-size: 7px; }
 .sea-map-wrap.is-expanded .sea-nautical-note { display: none; }
+.sea-map-tooltip { max-width: 170px; padding: 4px 6px; border: 1px solid #d7e5e1; border-radius: 6px; background: #fffffff2; color: #315f62; box-shadow: 0 3px 10px #203d3a2b; font-size: 9px; line-height: 1.25; white-space: normal; }
 .sea-vessel-area-context { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 2px; padding: 9px 10px; border: 1px solid #b7ded3; border-radius: 10px; background: #eaf7f2; color: #155c59; }
 .sea-vessel-area-context svg { flex: 0 0 auto; margin-top: 2px; color: #147f72; }
 .sea-vessel-area-context span { display: grid; gap: 2px; }

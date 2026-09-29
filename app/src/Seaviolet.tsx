@@ -284,7 +284,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           iconSize: [30, 30],
           iconAnchor: [15, 15],
         }),
-      }).addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -12], permanent: true });
+      }).addTo(map).bindTooltip(label, { direction: 'top', offset: [0, -12], sticky: true, className: 'sea-map-tooltip' });
       return { point, label, marker };
     });
     L.marker(destination, {
@@ -294,7 +294,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
         iconSize: [30, 30],
         iconAnchor: [15, 15],
       }),
-    }).addTo(map).bindTooltip('KAOMBO NORTE · δηλωμένος προορισμός', { direction: 'top', offset: [0, -12], permanent: true });
+    }).addTo(map).bindTooltip('KAOMBO NORTE · δηλωμένος προορισμός', { direction: 'top', offset: [0, -12], sticky: true, className: 'sea-map-tooltip' });
 
     const toRoutePoint = (item: Position): RoutePoint => [item.latitude, item.longitude];
     const safeRoutePoints = (items: unknown): RoutePoint[] => Array.isArray(items)
