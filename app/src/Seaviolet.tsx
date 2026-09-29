@@ -444,7 +444,7 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
         const tile = createTile(coords, done) as HTMLImageElement;
         // The seamark layer is a transparent raster overlay. Scale only its tiles
         // so symbols stay legible on the compact map without moving the basemap.
-        (tile.style as any).scale = mapExpanded ? '1.10' : '1.20';
+        (tile.style as any).scale = mapExpanded ? '1.30' : '1.20';
         tile.style.transformOrigin = 'center';
         tile.style.filter = 'contrast(1.12) saturate(1.08)';
         return tile;
@@ -454,7 +454,55 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
         const context = navigationContext(position.latitude, position.longitude);
         nauticalRadiusRef.current = L.circle([position.latitude, position.longitude], { radius: context.radiusNm * 1852, color: '#147f72', weight: 1.5, dashArray: '5 7', opacity: 0.6, fillColor: '#147f72', fillOpacity: 0.035, interactive: false }).addTo(map);
       }
+      let requestId = 0;
+      const onNauticalMapClick = async (event: L.LeafletMouseEvent) => {
+        const { lat, lng } = event.latlng;
+        const id = ++requestId;
+        const popup = L.popup({ maxWidth: 285, className: 'sea-nautical-popup' })
+          .setLatLng(event.latlng)
+          .setContent('<strong>Ναυτικό σημείο</strong><br/><span class="sea-map-popup-muted">Αναζήτηση βασικών στοιχείων…</span>')
+          .openOn(map);
+        const query = `[out:json][timeout:8];nwr["seamark:type"](around:2500,${lat},${lng});out center tags;`;
+        try {
+          const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`, { signal: AbortSignal.timeout(9000) });
+          const data = response.ok ? await response.json() : null;
+          if (id !== requestId || !map.getContainer().isConnected) return;
+          const candidates = Array.isArray(data?.elements) ? data.elements : [];
+          const withDistance = candidates.map((item: any) => {
+            const point = item.type === 'node' ? item : item.center;
+            const itemLat = Number(point?.lat), itemLng = Number(point?.lon);
+            if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) return null;
+            const distance = map.distance([lat, lng], [itemLat, itemLng]);
+            return { item, itemLat, itemLng, distance };
+          }).filter(Boolean).sort((a: any, b: any) => a.distance - b.distance)[0] as { item: any; itemLat: number; itemLng: number; distance: number } | undefined;
+          if (!withDistance || withDistance.distance > 2800) {
+            popup.setContent(`<strong>Δεν βρέθηκε καταγεγραμμένο ναυτικό σημείο εδώ</strong><br/><span class="sea-map-popup-muted">Συντεταγμένες: ${lat.toFixed(5)}, ${lng.toFixed(5)}<br/>Η εικόνα OpenSeaMap είναι ενδεικτική και η ακριβής αναγνώριση χρειάζεται επίσημο ναυτικό χάρτη.</span>`);
+            return;
+          }
+          const tags = withDistance.item.tags ?? {};
+          const type = String(tags['seamark:type'] ?? 'seamark').replaceAll('_', ' ');
+          const typeLabels: Record<string, string> = {
+            lighthouse: 'Φάρος', beacon: 'Φανός / ναυτικό σημάδι', buoy_lateral: 'Πλευρικός σημαντήρας', buoy_cardinal: 'Καρδινάλιος σημαντήρας',
+            buoy_special_purpose: 'Σημαντήρας ειδικού σκοπού', buoy_safe_water: 'Σημαντήρας ασφαλών υδάτων', buoy_isolated_danger: 'Σημαντήρας μεμονωμένου κινδύνου',
+            anchorage: 'Αγκυροβόλιο', harbour: 'Λιμενική εγκατάσταση', restricted_area: 'Περιοχή περιορισμού',
+          };
+          const label = typeLabels[tags['seamark:type']] ?? `Ναυτικό σημείο · ${type}`;
+          const rows = [
+            tags['seamark:name'] ?? tags.name ? `<br/><strong>Όνομα:</strong> ${tags['seamark:name'] ?? tags.name}` : '',
+            tags['seamark:light:character'] ? `<br/><strong>Χαρακτηρισμός φωτός:</strong> ${tags['seamark:light:character']}` : '',
+            tags['seamark:light:colour'] ? `<br/><strong>Χρώμα:</strong> ${tags['seamark:light:colour']}` : '',
+            tags['seamark:height'] ? `<br/><strong>Ύψος:</strong> ${tags['seamark:height']}` : '',
+            tags['seamark:category'] ?? tags['seamark:buoy:category'] ? `<br/><strong>Κατηγορία:</strong> ${tags['seamark:category'] ?? tags['seamark:buoy:category']}` : '',
+          ].join('');
+          popup.setContent(`<strong>${label}</strong>${rows}<br/><span class="sea-map-popup-muted">${withDistance.distance < 1000 ? `${Math.round(withDistance.distance)} μ. από το πάτημα` : `${(withDistance.distance / 1000).toFixed(1)} χλμ. από το πάτημα`} · ${withDistance.itemLat.toFixed(5)}, ${withDistance.itemLng.toFixed(5)}<br/>Πηγή: OpenStreetMap / OpenSeaMap. Επιβεβαίωσε με τον επίσημο ναυτικό χάρτη πριν από ναυτική απόφαση.</span>`);
+        } catch {
+          if (id === requestId) popup.setContent(`<strong>Τα στοιχεία δεν είναι διαθέσιμα τώρα</strong><br/><span class="sea-map-popup-muted">Συντεταγμένες: ${lat.toFixed(5)}, ${lng.toFixed(5)}<br/>Δοκίμασε ξανά σε λίγο.</span>`);
+        }
+      };
+      map.on('click', onNauticalMapClick);
+      return () => { map.off('click', onNauticalMapClick); };
     }
+    return undefined;
   }, [nauticalVisible, position, mapExpanded, contextFilter.enabled, contextFilter.options.join(',')]);
   useEffect(() => {
     const map = mapRef.current;
