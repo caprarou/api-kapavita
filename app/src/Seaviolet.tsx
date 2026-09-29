@@ -189,11 +189,12 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const reconstructedColor = '#bd8a45';
     const projectedColor = '#d39a3b';
     const boundsPoints: RoutePoint[] = [];
+    const actualLines: L.Polyline[] = [];
     const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string, arrows = false) => {
       if (points.length < 2) return;
-      const line = L.polyline(points, { color, weight: dashArray ? 3 : 5, opacity: dashArray ? 0.82 : 0.98, dashArray, lineCap: 'round' })
+      const line = L.polyline(points, { color, weight: dashArray ? 3 : 6, opacity: dashArray ? 0.82 : 1, dashArray, lineCap: 'round' })
         .addTo(map).bindTooltip(tooltip, { sticky: true });
-      if (!dashArray) line.bringToFront();
+      if (!dashArray) actualLines.push(line);
       if (arrows) addDirectionArrows(map, points, color, 3);
       boundsPoints.push(...points);
     };
@@ -329,6 +330,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
             }
           }
         }
+        actualLines.forEach(line => line.bringToFront());
         if (boundsPoints.length > 1) map.fitBounds(L.latLngBounds(boundsPoints).pad(0.12));
       } catch { /* The map keeps the markers and legend when the route service is unavailable. */ }
     };
