@@ -300,7 +300,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     }
     const anchors: Array<{ point: RoutePoint; label: string }> = [
       { point: [34.67, 33.04], label: 'Λιμένας Λεμεσού · σημείο αναχώρησης' },
-      { point: [36.51, 23.42], label: 'Νεάπολη Πελοποννήσου · σημείο αναφοράς' },
+      { point: [36.507841, 23.059025], label: 'Νεάπολη Πελοποννήσου · σημείο αναφοράς' },
     ];
     const anchorMarkers = anchors.map(({ point, label }) => {
       const marker = L.marker(point, {

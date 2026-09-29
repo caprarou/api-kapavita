@@ -247,7 +247,7 @@ console.log(JSON.stringify({ route, engine: 'arcnautical-ocean-grid' }));
 import { findOceanPath } from '@arcnautical/maritime-routing';
 const [lat, lon] = process.argv.slice(1).map(Number);
 const limassol = [33.04, 34.67];
-const neapoli = [23.42, 36.51];
+const neapoli = [23.059025, 36.507841];
 const current = [lon, lat];
 const destination = [11.2889, -7.2353];
 const leg = (from, to) => findOceanPath(from[1], from[0], to[1], to[0]);
