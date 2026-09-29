@@ -112,7 +112,7 @@ function addDirectionArrows(map: L.Map, route: RoutePoint[], color: string, maxA
   for (let index = step; index < route.length; index += step) {
     const before = route[index - 1];
     const after = route[index];
-    const angle = routeBearing(before, after);
+    const angle = routeBearing(before, after) - 90;
     L.marker(route[index], {
       icon: L.divIcon({
         className: 'route-direction-icon',
@@ -191,8 +191,9 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const boundsPoints: RoutePoint[] = [];
     const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string, arrows = false) => {
       if (points.length < 2) return;
-      L.polyline(points, { color, weight: dashArray ? 3 : 4, opacity: dashArray ? 0.82 : 0.96, dashArray, lineCap: 'round' })
+      const line = L.polyline(points, { color, weight: dashArray ? 3 : 5, opacity: dashArray ? 0.82 : 0.98, dashArray, lineCap: 'round' })
         .addTo(map).bindTooltip(tooltip, { sticky: true });
+      if (!dashArray) line.bringToFront();
       if (arrows) addDirectionArrows(map, points, color, 3);
       boundsPoints.push(...points);
     };
@@ -214,7 +215,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       L.marker([position.latitude, position.longitude], {
         icon: L.divIcon({
           className: 'ship-map-icon',
-          html: `<span style="transform:rotate(${vesselCourse}deg)">➤</span>`,
+          html: `<span style="transform:rotate(${vesselCourse - 90}deg)">➤</span>`,
           iconSize: [34, 34],
           iconAnchor: [17, 17],
         }),
@@ -262,7 +263,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
         if (position && !historyPoints.some(item => item.observedAt === position.observedAt)) historyPoints.push(position);
         historyPoints.sort((a, b) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
         historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
-          L.circleMarker(toRoutePoint(item), { radius: 3.5, color: '#fff', weight: 1.5, fillColor: actualColor, fillOpacity: 0.95 })
+          L.circleMarker(toRoutePoint(item), { radius: 5, color: '#fff', weight: 2, fillColor: actualColor, fillOpacity: 1 })
             .addTo(map).bindTooltip(`AIS · ${dateGreece(new Date(item.observedAt))}`, { direction: 'top', offset: [0, -5] });
         });
         const durationText = (from?: string, to?: string) => from && to ? formatVoyageTime(Math.max(0, (new Date(to).getTime() - new Date(from).getTime()) / 3600000)) : 'δεν υπολογίζεται';
