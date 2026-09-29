@@ -106,7 +106,7 @@ function routeBearing(a: RoutePoint, b: RoutePoint) {
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
-function addDirectionArrows(map: L.Map, route: RoutePoint[], color: string, maxArrows = 4) {
+function addDirectionArrows(map: L.Map, route: RoutePoint[], color: string, maxArrows = 2) {
   if (route.length < 2) return;
   const step = Math.max(1, Math.floor((route.length - 1) / (maxArrows + 1)));
   for (let index = step; index < route.length; index += step) {
@@ -168,7 +168,7 @@ function addTimedRouteSegments(
     L.polyline(segment, { color, weight: dashArray ? 3 : 4, opacity: 0.94, dashArray, lineCap: 'round' })
       .addTo(map)
       .bindTooltip(`${labels[i]}<br/><strong>${Math.round(distance)} ν.μ.</strong> · περίπου <strong>${formatVoyageTime(hours)}</strong>`, { sticky: true });
-    addDirectionArrows(map, segment, color, 2);
+    addDirectionArrows(map, segment, color, 1);
     start = end;
   }
 }
@@ -192,10 +192,13 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const actualLines: L.Polyline[] = [];
     const addLine = (points: RoutePoint[], color: string, dashArray: string | undefined, tooltip: string, arrows = false) => {
       if (points.length < 2) return;
+      if (!dashArray) {
+        L.polyline(points, { color: '#8bd2ed', weight: 13, opacity: 0.42, lineCap: 'round', interactive: false }).addTo(map);
+      }
       const line = L.polyline(points, { color, weight: dashArray ? 3 : 6, opacity: dashArray ? 0.82 : 1, dashArray, lineCap: 'round' })
         .addTo(map).bindTooltip(tooltip, { sticky: true });
       if (!dashArray) actualLines.push(line);
-      if (arrows) addDirectionArrows(map, points, color, 3);
+      if (arrows) addDirectionArrows(map, points, color, 1);
       boundsPoints.push(...points);
     };
     const addGapMarker = (point: RoutePoint, label: string) => {
@@ -211,16 +214,17 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
       return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
     })() : 245;
+    const vesselIcon = (course: number) => L.divIcon({
+      className: 'ship-map-icon',
+      html: `<span style="transform:rotate(${course - 90}deg)">➤</span>`,
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+    });
+    let vesselMarker: L.Marker | null = null;
     if (position) {
-      const vesselCourse = position.course != null ? position.course : bearingToDestination;
-      L.marker([position.latitude, position.longitude], {
-        icon: L.divIcon({
-          className: 'ship-map-icon',
-          html: `<span style="transform:rotate(${vesselCourse - 90}deg)">➤</span>`,
-          iconSize: [34, 34],
-          iconAnchor: [17, 17],
-        }),
-      }).addTo(map).bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(vesselCourse)}°${position.course == null ? ' · κατεύθυνση προς προορισμό' : ' · COG AIS'}`);
+      const initialCourse = position.course ?? position.heading ?? bearingToDestination;
+      vesselMarker = L.marker([position.latitude, position.longitude], { icon: vesselIcon(initialCourse) }).addTo(map);
+      vesselMarker.bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(initialCourse)}°${position.course != null ? ' · COG AIS' : position.heading != null ? ' · heading AIS' : ' · προσωρινή κατεύθυνση προς προορισμό'}`);
       boundsPoints.push([position.latitude, position.longitude]);
     }
     const anchors: Array<{ point: RoutePoint; label: string }> = [
@@ -263,6 +267,13 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           .sort((a: Position, b: Position) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
         if (position && !historyPoints.some(item => item.observedAt === position.observedAt)) historyPoints.push(position);
         historyPoints.sort((a, b) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
+        if (vesselMarker && position && position.course == null && position.heading == null && historyPoints.length >= 2) {
+          const before = historyPoints[historyPoints.length - 2];
+          const after = historyPoints[historyPoints.length - 1];
+          const movementCourse = routeBearing(toRoutePoint(before), toRoutePoint(after));
+          vesselMarker.setIcon(vesselIcon(movementCourse));
+          vesselMarker.setPopupContent(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(movementCourse)}° · υπολογισμός από τα δύο τελευταία AIS στίγματα`);
+        }
         historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
           L.circleMarker(toRoutePoint(item), { radius: 5, color: '#fff', weight: 2, fillColor: actualColor, fillOpacity: 1 })
             .addTo(map).bindTooltip(`AIS · ${dateGreece(new Date(item.observedAt))}`, { direction: 'top', offset: [0, -5] });
@@ -307,7 +318,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
             const hours = Math.max(0, (new Date(after.observedAt).getTime() - new Date(before.observedAt).getTime()) / 3600000);
             const actual = hours <= 2 && distance <= 80;
             if (actual) {
-              addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`, i % 6 === 1);
+              addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`, i % 12 === 1);
             } else {
               await reconstructed(from, to, dateGreece(new Date(before.observedAt)), dateGreece(new Date(after.observedAt)), before.observedAt, after.observedAt);
             }
