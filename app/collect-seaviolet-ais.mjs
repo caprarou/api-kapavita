@@ -68,12 +68,16 @@ async function writePosition(position) {
 async function saveHistory(position, raw = {}) {
   const q = value => value === null || value === undefined ? 'NULL' : "'" + String(value).replace(/'/g, "''") + "'";
   const rawJson = JSON.stringify(raw).replace(/'/g, "''");
-  const sql = `INSERT INTO observations.vessels (mmsi, name, properties, updated_at) VALUES (${position.mmsi}, 'SEAVIOLET', '${rawJson}'::jsonb, now()) ON CONFLICT (mmsi) DO UPDATE SET properties=observations.vessels.properties || EXCLUDED.properties, updated_at=now(); INSERT INTO observations.vessel_positions (mmsi, observed_at, source_id, location, speed_knots, destination, raw) VALUES (${position.mmsi}, ${q(position.observedAt)}::timestamptz, 'aisstream', ST_SetSRID(ST_Point(${position.longitude},${position.latitude}),4326), ${position.speedKnots ?? 'NULL'}, ${q(position.destination)}, '${rawJson}'::jsonb) ON CONFLICT (mmsi, observed_at, source_id) DO NOTHING;`;
+  const sourceId = position.source?.startsWith('Kpler') ? 'kpler' : position.source?.startsWith('MyShipTracking') ? 'myshiptracking' : 'aisstream';
+  const sql = `INSERT INTO observations.vessels (mmsi, name, properties, updated_at) VALUES (${position.mmsi}, 'SEAVIOLET', '${rawJson}'::jsonb, now()) ON CONFLICT (mmsi) DO UPDATE SET properties=observations.vessels.properties || EXCLUDED.properties, updated_at=now(); INSERT INTO observations.vessel_positions (mmsi, observed_at, source_id, location, speed_knots, destination, raw) VALUES (${position.mmsi}, ${q(position.observedAt)}::timestamptz, ${q(sourceId)}, ST_SetSRID(ST_Point(${position.longitude},${position.latitude}),4326), ${position.speedKnots ?? 'NULL'}, ${q(position.destination)}, '${rawJson}'::jsonb) ON CONFLICT (mmsi, observed_at, source_id) DO NOTHING;`;
   try { await execFileAsync('psql', ['--dbname=kapavita', '--set=ON_ERROR_STOP=1', '--command', sql]); } catch (error) { console.error('AIS history database write failed:', error.message); }
 }
-function save(position) {
+function save(position, raw = {}) {
   lastPosition = position;
-  saveQueue = saveQueue.catch(() => {}).then(() => writePosition(position));
+  saveQueue = saveQueue.catch(() => {}).then(async () => {
+    await writePosition(position);
+    await saveHistory(position, raw);
+  });
   return saveQueue;
 }
 
@@ -118,7 +122,7 @@ async function pollMyShipTracking() {
     const speed = number(vessel.speed);
     if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
     if (isNewer(position)) {
-      await save(position);
+      await save(position, payload);
       console.log('Received SEAVIOLET fallback position', position.observedAt);
     }
   } catch (error) {
@@ -196,7 +200,7 @@ async function pollKpler() {
     const speed = number(latest.speed);
     if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
     if (isNewer(position)) {
-      await save(position);
+      await save(position, payload);
       console.log('Received SEAVIOLET Kpler position', position.observedAt);
     }
   } catch (error) {
@@ -277,7 +281,7 @@ function connect() {
 
       if (!hasPosition) {
         if (lastPosition && Object.keys(freshDetails).length) {
-          await save({ ...lastPosition, ...vesselDetails });
+          await save({ ...lastPosition, ...vesselDetails }, event);
         }
         console.log('Received SEAVIOLET AIS message without coordinates:', event.MessageType);
         return;
@@ -294,7 +298,7 @@ function connect() {
       const speed = number(report.Sog);
       if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
 
-      await save(position);
+      await save(position, event);
       console.log('Received SEAVIOLET position', position.observedAt, event.MessageType);
     } catch (error) {
       console.error('AIS message rejected:', error.message);
