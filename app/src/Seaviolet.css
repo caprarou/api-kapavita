@@ -140,3 +140,7 @@
 .sea-nautical-toggle-dot.greek { width: 24px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: #147f72; background: #e2f4ee; box-shadow: 0 0 0 1px #b9ded2; font-size: 8px; font-weight: 900; }
 .sea-map-layer-row.active .sea-nautical-toggle-dot.greek { color: #fff; background: #159879; box-shadow: 0 0 0 1px #159879; }
 .sea-map-wrap:not(.is-expanded) .sea-nautical-toggle-dot.greek { width: 19px; height: 16px; font-size: 7px; }
+
+.sea-nautical-toggle-dot.security { width: 24px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: #9a5b1f; background: #fff1dc; box-shadow: 0 0 0 1px #e8c28c; font-size: 13px; font-weight: 900; }
+.sea-map-layer-row.active .sea-nautical-toggle-dot.security { color: #fff; background: #c56b2d; box-shadow: 0 0 0 1px #c56b2d; }
+.sea-map-wrap:not(.is-expanded) .sea-nautical-toggle-dot.security { width: 19px; height: 16px; font-size: 10px; }
