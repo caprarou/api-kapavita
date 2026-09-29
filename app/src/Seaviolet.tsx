@@ -272,7 +272,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
           const after = historyPoints[historyPoints.length - 1];
           const movementCourse = routeBearing(toRoutePoint(before), toRoutePoint(after));
           vesselMarker.setIcon(vesselIcon(movementCourse));
-          vesselMarker.setPopupContent(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(movementCourse)}° · υπολογισμός από τα δύο τελευταία AIS στίγματα`);
+          vesselMarker.bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(movementCourse)}° · υπολογισμός από τα δύο τελευταία AIS στίγματα`);
         }
         historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
           L.circleMarker(toRoutePoint(item), { radius: 5, color: '#fff', weight: 2, fillColor: actualColor, fillOpacity: 1 })
