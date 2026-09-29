@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
 import { Anchor, ArrowRight, Clock3, Heart, MapPin, MessageCircle, Radio, ShieldCheck, Ship, X } from 'lucide-react';
 import './Seaviolet.css';
 
@@ -74,6 +77,21 @@ const dailyLessons = [
   {title:'Ομάδα γέφυρας: κοινή εικόνα και διασταύρωση',steps:['Πριν από κρίσιμο σκέλος, συμφωνήστε πορεία, κινδύνους, όρια και εναλλακτικές.','Μοιράστε σαφείς ρόλους και κρατήστε ανοιχτή επικοινωνία στη γέφυρα.','Αμφισβητήστε ήρεμα μια ένδειξη που δεν συμφωνεί με την εικόνα και καταγράψτε την απόφαση.'],question:'Ποια πρακτική μειώνει περισσότερο τον κίνδυνο ενός σφάλματος στη γέφυρα;',options:['Κοινή εικόνα, σαφείς ρόλοι και ανεξάρτητο cross-check','Να ακολουθεί ένας χειριστής όλες τις ενδείξεις χωρίς συζήτηση'],answer:'Η ομαδική εικόνα και το cross-check επιτρέπουν να εντοπιστεί έγκαιρα μια λανθασμένη ένδειξη ή υπόθεση.',hint:'Η αυτοματοποίηση βοηθά, αλλά η ασφαλής ναυσιπλοΐα χρειάζεται επικοινωνία και ανθρώπινη κρίση.',source:'IMO Model Course 1.22 · Bridge Procedures Guide'}
 ];
 const vesselUrl = 'https://www.marinetraffic.com/en/ais/details/ships/shipid:9149760/mmsi:248554000/imo:9790983/vessel:SEAVIOLET';
+const greekMapStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
+const loadGreekMapStyle = async () => {
+  const response = await fetch(greekMapStyleUrl, { cache: 'force-cache' });
+  if (!response.ok) throw new Error(`Greek map style unavailable (${response.status})`);
+  const style = await response.json() as { layers?: Array<Record<string, any>>; [key: string]: any };
+  // OpenFreeMap/OpenMapTiles carries translated names when OSM has them. Prefer Greek,
+  // then the local name, so places without a Greek translation remain readable.
+  style.layers = (style.layers ?? []).map((layer) => {
+    if (layer.type === 'symbol' && layer.layout?.['text-field']) {
+      return { ...layer, layout: { ...layer.layout, 'text-field': ['coalesce', ['get', 'name:el'], ['get', 'name:nonlatin'], ['get', 'name'], ['get', 'name:latin'], ['get', 'name_en']] } };
+    }
+    return layer;
+  });
+  return style;
+};
 const dateGreece = (value: Date) => new Intl.DateTimeFormat('el-GR', { timeZone:'Europe/Athens', weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }).format(value);
 const clock = (value: Date, offset: number) => new Intl.DateTimeFormat('el-GR', { timeZone:'UTC', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).format(new Date(value.getTime() + offset * 3600000));
 const greeceOffset = (now: Date) => {
@@ -187,6 +205,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
   const nauticalLayerRef = useRef<L.TileLayer | null>(null);
   const nauticalRadiusRef = useRef<L.Circle | null>(null);
   const [nauticalVisible, setNauticalVisible] = useState(false);
+  const [greekMapVisible, setGreekMapVisible] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const toggleMapExpanded = async () => {
     const wrapper = element.current?.parentElement;
@@ -221,10 +240,20 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     const initialZoom = viewRef.current?.zoom ?? (position ? 6 : 3);
     const map = L.map(element.current, { zoomControl: true }).setView(initialCenter, initialZoom);
     mapRef.current = map;
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 18,
-    }).addTo(map);
+    });
+    baseLayer.addTo(map);
+    if (greekMapVisible) {
+      void loadGreekMapStyle().then((style) => {
+        if (!mapRef.current || mapRef.current !== map) return;
+        baseLayer.removeFrom(map);
+        maplibreGL({ style: style as any, attributionControl: false }).addTo(map);
+      }).catch(() => {
+        // Keep the reliable OSM raster if the optional Greek style is unavailable.
+      });
+    }
     const actualColor = '#147fba';
     const reconstructedColor = '#bd8a45';
     const projectedColor = '#d39a3b';
@@ -387,7 +416,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
     void drawTracks();
     const timer = window.setTimeout(() => map.invalidateSize(), 50);
     return () => { const center = map.getCenter(); viewRef.current = { center: [center.lat, center.lng], zoom: map.getZoom() }; controller.abort(); window.clearTimeout(timer); map.remove(); mapRef.current = null; nauticalLayerRef.current = null; nauticalRadiusRef.current = null; };
-  }, [position, showRoute]);
+  }, [position, showRoute, greekMapVisible]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -401,7 +430,7 @@ function VesselMap({ position, showRoute }: { position: Position | null; showRou
       }
     }
   }, [nauticalVisible, position]);
-  return <div className={`sea-map-wrap${mapExpanded ? ' is-expanded' : ''}`}><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών, προβλεπόμενη πορεία και προαιρετικά ναυτικά σημεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} /><div className="sea-map-actions"><button type="button" className="sea-map-expand" onClick={() => void toggleMapExpanded()} aria-pressed={mapExpanded}>{mapExpanded ? '↙ Επαναφορά' : '↗ Πλήρης οθόνη'}</button></div><div className="sea-map-bottom-menu" aria-label="Επίπεδα χάρτη"><div className="sea-map-bottom-heading"><strong>Επίπεδα χάρτη</strong><span>Πρόσθετες πληροφορίες για την περιοχή του πλοίου</span></div><button type="button" className={`sea-map-layer-row${nauticalVisible ? ' active' : ''}`} onClick={() => setNauticalVisible((visible) => !visible)} aria-pressed={nauticalVisible}><span className="sea-nautical-toggle-dot" /><span><strong>Ναυτικά σημεία</strong><small>Φάροι, σημαντήρες, αγκυροβόλια και σημεία ναυσιπλοΐας · ακτίνα {position ? navigationContext(position.latitude, position.longitude).radiusNm : 100} ν.μ.</small></span><em>{nauticalVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button><p>Το μενού μπορεί να εμπλουτιστεί αργότερα με καιρό, προειδοποιήσεις και άλλα επίπεδα δεδομένων.</p></div>{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div><div><i className="sea-legend-line nautical" /><span><strong>Ναυτικά σημεία</strong><small>προαιρετικό OpenSeaMap επίπεδο</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
+  return <div className={`sea-map-wrap${mapExpanded ? ' is-expanded' : ''}`}><div className="sea-map" ref={element} role="img" aria-label={position ? 'Χάρτης με επιβεβαιωμένη AIS διαδρομή, θεωρητικές ανακατασκευές κενών, προβλεπόμενη πορεία και προαιρετικά ναυτικά σημεία του SEAVIOLET' : 'Χάρτης χωρίς επιβεβαιωμένο στίγμα του πλοίου'} /><div className="sea-map-actions"><button type="button" className="sea-map-expand" onClick={() => void toggleMapExpanded()} aria-pressed={mapExpanded}>{mapExpanded ? '↙ Επαναφορά' : '↗ Πλήρης οθόνη'}</button></div><div className="sea-map-bottom-menu" aria-label="Επίπεδα χάρτη"><div className="sea-map-bottom-heading"><strong>Επίπεδα χάρτη</strong><span>Πρόσθετες πληροφορίες για την περιοχή του πλοίου</span></div><button type="button" className={`sea-map-layer-row${nauticalVisible ? ' active' : ''}`} onClick={() => setNauticalVisible((visible) => !visible)} aria-pressed={nauticalVisible}><span className="sea-nautical-toggle-dot" /><span><strong>Ναυτικά σημεία</strong><small>Φάροι, σημαντήρες, αγκυροβόλια και σημεία ναυσιπλοΐας · ακτίνα {position ? navigationContext(position.latitude, position.longitude).radiusNm : 100} ν.μ.</small></span><em>{nauticalVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button><button type="button" className={`sea-map-layer-row${greekMapVisible ? ' active' : ''}`} onClick={() => setGreekMapVisible((visible) => !visible)} aria-pressed={greekMapVisible}><span className="sea-nautical-toggle-dot greek">Ελ</span><span><strong>Ελληνικές ονομασίες</strong><small>Δοκιμή OpenMapTiles · όπου υπάρχει ελληνική μετάφραση</small></span><em>{greekMapVisible ? 'Ενεργό' : 'Ανενεργό'}</em></button><p>Το μενού μπορεί να εμπλουτιστεί αργότερα με καιρό, προειδοποιήσεις και άλλα επίπεδα δεδομένων.</p></div>{showRoute && <div className="sea-map-legend" aria-label="Υπόμνημα διαδρομής"><div><i className="sea-legend-line actual" /><span><strong>Επιβεβαιωμένο AIS</strong><small>πραγματικά στίγματα</small></span></div><div><i className="sea-legend-line reconstructed" /><span><strong>Θεωρητική ανακατασκευή</strong><small>κενό χωρίς AIS δεδομένα</small></span></div><div><i className="sea-legend-line projected" /><span><strong>Προβλεπόμενη πορεία</strong><small>προς δηλωμένο προορισμό</small></span></div><div><i className="sea-legend-line nautical" /><span><strong>Ναυτικά σημεία</strong><small>προαιρετικό OpenSeaMap επίπεδο</small></span></div></div>}{!position && <div className="sea-map-empty"><MapPin size={21}/><strong>Δεν έχει συνδεθεί στίγμα AIS</strong><span>Ο χάρτης δεν δείχνει θέση πλοίου μέχρι να λάβουμε καταγραφή με ώρα και πηγή.</span></div>}</div>;
 }function ExternalVesselPosition() {
   return <div className="sea-external-position"><MapPin size={25}/><div><strong>Δες τη νεότερη θέση στο VesselFinder</strong><p>Η δική μας ροή AIS δεν έχει λάβει ακόμη στίγμα για το SEAVIOLET. Το VesselFinder διαθέτει ανεξάρτητα δεδομένα για τη θέση, τον προορισμό και την εκτιμώμενη άφιξη· άνοιξέ τα απευθείας στην υπηρεσία του.</p><a href="https://www.vesselfinder.com/vessels/details/9790983" target="_blank" rel="noopener noreferrer">Άνοιξε τη σελίδα του SEAVIOLET στο VesselFinder ↗</a><p className="sea-alternative-source">Δεύτερη ανεξάρτητη πηγή: <a href="https://www.myshiptracking.com/vessels/seaviolet-mmsi-248554000-imo-9790983" target="_blank" rel="noopener noreferrer">MyShipTracking ↗</a>. Έλεγξε την ώρα του στίγματος· μπορεί να είναι παλαιότερο.</p></div></div>;
 }
