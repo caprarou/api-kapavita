@@ -2,7 +2,7 @@
 import re, unicodedata
 DESTINATIONS={
  'KAOMBO NORTE':{'name':'KAOMBO NORTE','latitude':-7.2353,'longitude':11.2889,'kind':'offshore_fpsO','confidence':'high'},
- 'NEAPOLI':{'name':'Νεάπολη Πελοποννήσου','latitude':36.51,'longitude':23.42,'kind':'port','confidence':'medium'},
+ 'NEAPOLI':{'name':'Νεάπολη Πελοποννήσου','latitude':36.507841,'longitude':23.059025,'kind':'port','confidence':'medium'},
  'LIMASSOL':{'name':'Λιμένας Λεμεσού','latitude':34.67,'longitude':33.04,'kind':'port','confidence':'high'},
 }
 def normalize(value):
