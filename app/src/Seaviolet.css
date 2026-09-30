@@ -156,3 +156,22 @@
 .sea-map-wrap:not(.is-expanded) .sea-map-filter-control select { min-width: 96px; padding: 4px 5px; font-size: 7px; }
 .sea-map-wrap:not(.is-expanded) .sea-map-route-filter button { padding: 4px 5px; font-size: 7px; }
 .sea-quote-translation { color: #806f5e; font-style: italic; }
+
+@media (max-width:580px) {
+  .sea-map-wrap:not(.is-expanded) .sea-map-bottom-menu {
+    width: 154px;
+    padding: 5px 6px;
+    gap: 3px;
+    border-radius: 8px;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-map-bottom-heading strong {
+    font-size: 7px;
+    line-height: 1.05;
+    letter-spacing: -.015em;
+    white-space: nowrap;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-map-layer-row {
+    padding: 5px 6px;
+    gap: 5px;
+  }
+}
