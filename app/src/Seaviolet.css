@@ -157,6 +157,8 @@
 .sea-map-wrap:not(.is-expanded) .sea-map-route-filter button { padding: 4px 5px; font-size: 7px; }
 .sea-quote-translation { color: #806f5e; font-style: italic; }
 
+.sea-mobile-map-launcher { display: none; }
+
 @media (max-width:580px) {
   .sea-map-wrap:not(.is-expanded) .sea-map-bottom-menu {
     width: 154px;
@@ -189,9 +191,32 @@
   .sea-map-wrap:not(.is-expanded) .sea-nautical-note {
     display: none;
   }
+  .sea-mobile-map-launcher { display: none; }
   .sea-map-wrap:not(.is-expanded) .sea-map-actions {
     position: static;
     display: flex;
     justify-content: flex-end;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-mobile-map-launcher {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 46px;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-mobile-map-launcher button {
+    border: 1px solid #b8d9d0;
+    border-radius: 999px;
+    padding: 10px 13px;
+    background: #eaf6f0;
+    color: #14776e;
+    box-shadow: 0 3px 10px #20494512;
+    font: 800 11px/1.1 Manrope, sans-serif;
+    cursor: pointer;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-map-actions {
+    display: none;
+  }
+  .sea-map-wrap.is-expanded .sea-mobile-map-launcher {
+    display: none;
   }
 }
