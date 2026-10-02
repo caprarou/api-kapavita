@@ -174,4 +174,24 @@
     padding: 5px 6px;
     gap: 5px;
   }
+
+  /* On phones the compact card keeps only the full-screen action visible. */
+  .sea-map-wrap:not(.is-expanded) {
+    height: 46px;
+    margin-bottom: 6px;
+    overflow: visible;
+    background: transparent;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-map,
+  .sea-map-wrap:not(.is-expanded) .sea-map-legend,
+  .sea-map-wrap:not(.is-expanded) .sea-map-bottom-menu,
+  .sea-map-wrap:not(.is-expanded) .sea-map-empty,
+  .sea-map-wrap:not(.is-expanded) .sea-nautical-note {
+    display: none;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-map-actions {
+    position: static;
+    display: flex;
+    justify-content: flex-end;
+  }
 }
