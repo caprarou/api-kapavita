@@ -160,63 +160,26 @@
 .sea-mobile-map-launcher { display: none; }
 
 @media (max-width:580px) {
-  .sea-map-wrap:not(.is-expanded) .sea-map-bottom-menu {
-    width: 154px;
-    padding: 5px 6px;
-    gap: 3px;
-    border-radius: 8px;
-  }
-  .sea-map-wrap:not(.is-expanded) .sea-map-bottom-heading strong {
-    font-size: 7px;
-    line-height: 1.05;
-    letter-spacing: -.015em;
-    white-space: nowrap;
-  }
-  .sea-map-wrap:not(.is-expanded) .sea-map-layer-row {
-    padding: 5px 6px;
-    gap: 5px;
-  }
-
-  /* On phones the compact card keeps only the full-screen action visible. */
   .sea-map-wrap:not(.is-expanded) {
-    height: 46px;
-    margin-bottom: 6px;
-    overflow: visible;
-    background: transparent;
+    height: 230px;
+    margin-bottom: 13px;
+    overflow: hidden;
+    background: #e8efeb;
   }
-  .sea-map-wrap:not(.is-expanded) .sea-map,
-  .sea-map-wrap:not(.is-expanded) .sea-map-legend,
-  .sea-map-wrap:not(.is-expanded) .sea-map-bottom-menu,
-  .sea-map-wrap:not(.is-expanded) .sea-map-empty,
-  .sea-map-wrap:not(.is-expanded) .sea-nautical-note {
+  .sea-map-wrap:not(.is-expanded) .sea-map {
+    display: block;
+    height: 100%;
+  }
+  .sea-map-wrap:not(.is-expanded) .sea-map-bottom-menu {
     display: none;
   }
-  .sea-mobile-map-launcher { display: none; }
   .sea-map-wrap:not(.is-expanded) .sea-map-actions {
-    position: static;
+    position: absolute;
+    top: 8px;
+    right: 8px;
     display: flex;
-    justify-content: flex-end;
   }
-  .sea-map-wrap:not(.is-expanded) .sea-mobile-map-launcher {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    min-height: 46px;
-  }
-  .sea-map-wrap:not(.is-expanded) .sea-mobile-map-launcher button {
-    border: 1px solid #b8d9d0;
-    border-radius: 999px;
-    padding: 10px 13px;
-    background: #eaf6f0;
-    color: #14776e;
-    box-shadow: 0 3px 10px #20494512;
-    font: 800 11px/1.1 Manrope, sans-serif;
-    cursor: pointer;
-  }
-  .sea-map-wrap:not(.is-expanded) .sea-map-actions {
-    display: none;
-  }
-  .sea-map-wrap.is-expanded .sea-mobile-map-launcher {
+  .sea-mobile-map-launcher {
     display: none;
   }
 }
