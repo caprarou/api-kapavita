@@ -33,6 +33,17 @@ const number = value => {
 
 const cleanText = value => typeof value === 'string' && value.trim() ? value.trim().replace(/@+$/g, '').trim() : undefined;
 
+const decodeHtml = value => String(value || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+
+const vesselFinderReportedAt = value => {
+  const text = String(value || '').toLowerCase();
+  const match = text.match(/(\d+)\s+(min|hour|day)/);
+  if (!match) return new Date().toISOString();
+  const amount = Number(match[1]);
+  const unit = match[2] === 'min' ? 60_000 : match[2] === 'hour' ? 3_600_000 : 86_400_000;
+  return new Date(Date.now() - amount * unit).toISOString();
+};
+
 const observedAt = value => {
   if (typeof value !== 'string' || !value.trim()) return new Date().toISOString();
 
@@ -208,9 +219,62 @@ async function pollKpler() {
   }
 }
 
+async function pollVesselFinder() {
+  if (stopped) return;
+
+  try {
+    const response = await fetch('https://www.vesselfinder.com/vessels/details/9790983', {
+      headers: { 'User-Agent': 'KapaVita AIS collector/1.0', Accept: 'text/html' },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok) {
+      console.error('VesselFinder request failed:', response.status);
+      return;
+    }
+
+    const html = await response.text();
+    const match = html.match(/<div id="djson"[^>]*data-json='([^']+)'/i);
+    if (!match) {
+      console.error('VesselFinder returned no position payload');
+      return;
+    }
+
+    const payload = JSON.parse(decodeHtml(match[1]));
+    const latitude = number(payload.ship_lat);
+    const longitude = number(payload.ship_lon);
+    if (Number(payload.mmsi) !== mmsi || latitude === null || longitude === null
+      || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) {
+      console.error('VesselFinder returned no valid SEAVIOLET position');
+      return;
+    }
+
+    const destinationMatch = html.match(/en route to\s+<strong>([^<]+)<\/strong>/i);
+    const destination = cleanText(destinationMatch?.[1]);
+    const reported = cleanText(payload.lrpd);
+    const position = {
+      mmsi,
+      latitude,
+      longitude,
+      observedAt: vesselFinderReportedAt(reported),
+      source: 'VesselFinder AIS' + (reported ? ' / ' + reported : ''),
+      ...(destination ? { destination } : {}),
+    };
+    const speed = number(payload.ship_sog);
+    if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
+    const course = number(payload.ship_cog);
+    if (course !== null && course >= 0 && course <= 360) position.course = course;
+
+    if (isNewer(position)) {
+      await save(position, payload);
+      console.log('Received SEAVIOLET VesselFinder position', position.observedAt);
+    }
+  } catch (error) {
+    console.error('VesselFinder request:', error.message);
+  }
+}
+
 function scheduleFallback() {
-  const poll = kplerToken ? pollKpler : myShipTrackingKey ? pollMyShipTracking : null;
-  if (!poll) return;
+  const poll = kplerToken ? pollKpler : myShipTrackingKey ? pollMyShipTracking : pollVesselFinder;
   void poll();
   fallbackTimer = setInterval(() => void poll(), 15 * 60 * 1000);
 }
