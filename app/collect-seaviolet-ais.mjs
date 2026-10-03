@@ -316,14 +316,24 @@ function connect() {
   socket.on('open', () => socket.send(JSON.stringify({
     APIKey: key,
     BoundingBoxes: [[[-90, -180], [90, 180]]],
-    // Keep the stream small, but accept every AIS message type for this vessel.
-    // Some useful packets expose their position only through MetaData.
+    // Request decoded position packets explicitly. Without this filter AISStream
+    // can confirm the subscription but omit the position-report stream.
     FiltersShipMMSI: [String(mmsi)],
+    FilterMessageTypes: [
+      'PositionReport',
+      'LongRangeAisBroadcastMessage',
+      'ExtendedClassBPositionReport',
+      'StandardClassBPositionReport',
+    ],
   })));
 
   socket.on('message', async raw => {
     try {
       const event = JSON.parse(raw.toString());
+      if (event.error) {
+        console.error('AISStream subscription error:', event.error);
+        return;
+      }
       if (event.MessageType === 'SubscriptionConfirmation') {
         retry = 1000;
         console.log('AIS subscription confirmed');
