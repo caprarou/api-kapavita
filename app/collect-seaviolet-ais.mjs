@@ -79,7 +79,7 @@ async function writePosition(position) {
 async function saveHistory(position, raw = {}) {
   const q = value => value === null || value === undefined ? 'NULL' : "'" + String(value).replace(/'/g, "''") + "'";
   const rawJson = JSON.stringify(raw).replace(/'/g, "''");
-  const sourceId = position.source?.startsWith('Kpler') ? 'kpler' : position.source?.startsWith('MyShipTracking') ? 'myshiptracking' : 'aisstream';
+  const sourceId = position.source?.startsWith('Kpler') ? 'kpler' : position.source?.startsWith('MyShipTracking') ? 'myshiptracking' : position.source?.startsWith('VesselFinder') ? 'vesselfinder-api' : 'aisstream';
   const sql = `INSERT INTO observations.vessels (mmsi, name, properties, updated_at) VALUES (${position.mmsi}, 'SEAVIOLET', '${rawJson}'::jsonb, now()) ON CONFLICT (mmsi) DO UPDATE SET properties=observations.vessels.properties || EXCLUDED.properties, updated_at=now(); INSERT INTO observations.vessel_positions (mmsi, observed_at, source_id, location, speed_knots, course, heading, destination, raw) VALUES (${position.mmsi}, ${q(position.observedAt)}::timestamptz, ${q(sourceId)}, ST_SetSRID(ST_Point(${position.longitude},${position.latitude}),4326), ${position.speedKnots ?? 'NULL'}, ${position.course ?? 'NULL'}, ${position.heading ?? 'NULL'}, ${q(position.destination)}, '${rawJson}'::jsonb) ON CONFLICT (mmsi, observed_at, source_id) DO NOTHING;`;
   try { await execFileAsync('psql', ['--dbname=kapavita', '--set=ON_ERROR_STOP=1', '--command', sql]); } catch (error) { console.error('AIS history database write failed:', error.message); }
 }
@@ -335,10 +335,17 @@ function connect() {
         vesselDetails = { ...vesselDetails, ...freshDetails };
       }
 
-      // Position reports carry coordinates in the decoded payload. AISStream also
-      // publishes normalized coordinates in MetaData for other vessel messages.
-      const latitude = number(report.Latitude) ?? number(event.MetaData?.latitude);
-      const longitude = number(report.Longitude) ?? number(event.MetaData?.longitude);
+      // Position reports carry the precise coordinates in the decoded payload.
+      // Metadata coordinates can be rounded to whole degrees, so never use that
+      // low-precision fallback as a new AIS fix.
+      const reportLatitude = number(report.Latitude);
+      const reportLongitude = number(report.Longitude);
+      const metadataLatitude = number(event.MetaData?.latitude);
+      const metadataLongitude = number(event.MetaData?.longitude);
+      const metadataHasPrecision = metadataLatitude !== null && metadataLongitude !== null
+        && (!Number.isInteger(metadataLatitude) || !Number.isInteger(metadataLongitude));
+      const latitude = reportLatitude ?? (metadataHasPrecision ? metadataLatitude : null);
+      const longitude = reportLongitude ?? (metadataHasPrecision ? metadataLongitude : null);
       const hasPosition = latitude !== null && longitude !== null
         && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
         && !(latitude === 0 && longitude === 0);
@@ -362,8 +369,12 @@ function connect() {
       const speed = number(report.Sog);
       if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
 
-      await save(position, event);
-      console.log('Received SEAVIOLET position', position.observedAt, event.MessageType);
+      if (isNewer(position)) {
+        await save(position, event);
+        console.log('Received SEAVIOLET position', position.observedAt, event.MessageType);
+      } else {
+        console.log('Ignored stale SEAVIOLET AIS position', position.observedAt, event.MessageType);
+      }
     } catch (error) {
       console.error('AIS message rejected:', error.message);
     }
