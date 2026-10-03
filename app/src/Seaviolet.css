@@ -125,9 +125,9 @@
 
 .sea-daily-note{background:linear-gradient(135deg,#f4fbf8,#ffffff);border-left:4px solid #198778}.sea-daily-note h2{margin:8px 0 6px;color:#214e58;font-size:20px}.sea-daily-note p{margin:0;color:#547478;font:italic 15px/1.6 Georgia,serif}.sea-daily-note small{display:block;margin-top:10px;color:#8aa19e;font-size:10px}
 
-.ship-map-icon{background:transparent;border:0}.ship-map-icon span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#147fba;color:#fff;border:2px solid #fff;box-shadow:0 3px 10px #123c4266;font-size:18px}
+.ship-map-icon{background:transparent;border:0}.ship-map-icon span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#147fba;color:#fff;border:2px solid #fff;box-shadow:0 3px 10px #123c4266;font-size:18px;line-height:1;transform-origin:center}
 .route-direction-icon { z-index: 420 !important; border: 0; background: transparent; pointer-events: none; }
-.route-direction-icon span { display: grid; place-items: center; width: 22px; height: 22px; font-size: 18px; font-weight: 900; line-height: 1; text-shadow: 0 1px 3px #fff, 0 0 4px #fff; }
+.route-direction-icon span { display: grid; place-items: center; width: 22px; height: 22px; font-size: 18px; font-weight: 900; line-height: 1; transform-origin: center; text-shadow: 0 1px 3px #fff, 0 0 4px #fff; }
 
 .anchor-map-icon,.destination-map-icon{background:transparent;border:0}.anchor-map-icon span,.destination-map-icon span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;color:#fff;border:2px solid #fff;box-shadow:0 3px 10px #123c4266;font-size:17px;font-weight:700}.anchor-map-icon span{background:#c18b35}.destination-map-icon span{background:#b54f5a;font-size:14px}
 .sea-daily-events{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}.sea-daily-events article{padding:13px 14px;border:1px solid #d8ebe5;border-radius:14px;background:#ffffffcc}.sea-event-label{display:block;color:#167d73;font-size:9px;font-weight:800;letter-spacing:.12em}.sea-daily-events h3{margin:7px 0 5px;color:#214e58;font-size:14px}.sea-daily-events article p{font:12px/1.5 Inter,system-ui,sans-serif;color:#5e7879}.sea-daily-events article small{margin-top:8px;font-size:9px}@media (max-width:760px){.sea-daily-events{grid-template-columns:1fr}}

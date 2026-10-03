@@ -133,17 +133,22 @@ function routeBearing(a: RoutePoint, b: RoutePoint) {
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
+function routePointIsDistinct(a: RoutePoint, b: RoutePoint) {
+  return nauticalMiles(a, b) >= 0.05;
+}
 function addDirectionArrows(map: L.Map, route: RoutePoint[], color: string, maxArrows = 2) {
-  if (route.length < 2) return;
-  const step = Math.max(1, Math.floor((route.length - 1) / (maxArrows + 1)));
-  for (let index = step; index < route.length; index += step) {
-    const before = route[index - 1];
-    const after = route[index];
-    const angle = routeBearing(before, after) - 90;
-    L.marker(route[index], {
+  const distinctRoute = route.filter((point, index) => index === 0 || routePointIsDistinct(point, route[index - 1]));
+  if (distinctRoute.length < 2) return;
+  const step = Math.max(1, Math.floor((distinctRoute.length - 1) / (maxArrows + 1)));
+  for (let index = step; index < distinctRoute.length; index += step) {
+    const before = distinctRoute[Math.max(0, index - 1)];
+    const after = distinctRoute[Math.min(distinctRoute.length - 1, index + 1)];
+    if (!routePointIsDistinct(before, after)) continue;
+    const angle = routeBearing(before, after);
+    L.marker(distinctRoute[index], {
       icon: L.divIcon({
         className: 'route-direction-icon',
-        html: `<span style="color:${color};transform:rotate(${angle}deg)">➤</span>`,
+        html: `<span style="color:${color};transform:rotate(${angle}deg)">▲</span>`,
         iconSize: [22, 22],
         iconAnchor: [11, 11],
       }),
@@ -298,7 +303,7 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
     })() : 245;
     const vesselIcon = (course: number) => L.divIcon({
       className: 'ship-map-icon',
-      html: `<span style="transform:rotate(${course - 90}deg)">➤</span>`,
+      html: `<span style="transform:rotate(${course}deg)" aria-hidden="true">▲</span>`,
       iconSize: [34, 34],
       iconAnchor: [17, 17],
     });
@@ -399,10 +404,11 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
             const from = toRoutePoint(before), to = toRoutePoint(after);
             const distance = nauticalMiles(from, to);
             const hours = Math.max(0, (new Date(after.observedAt).getTime() - new Date(before.observedAt).getTime()) / 3600000);
-            const actual = hours <= 2 && distance <= 80;
+            const hasMovement = distance >= 0.05;
+            const actual = hasMovement && hours <= 2 && distance <= 80;
             if (actual && showActual) {
               addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`, i % 12 === 1);
-            } else if (showReconstructed) {
+            } else if (hasMovement && showReconstructed) {
               await reconstructed(from, to, dateGreece(new Date(before.observedAt)), dateGreece(new Date(after.observedAt)), before.observedAt, after.observedAt);
             }
           }
