@@ -151,6 +151,7 @@
 .sea-chat-compose .sea-choice, .sea-chat-compose .sea-phrases { padding: 13px; border-radius: 16px; background: #fff; border: 1px solid #e4efeb; }
 .sea-chat-compose .sea-preview { margin-left: 8%; border-radius: 16px 16px 5px 16px; background: #fff3f7; border-color: #efd6df; }
 .sea-crew-view .sea-side-card { border-color: #d7e9e3; background: #fbfefd; }
+.sea-page.is-crew-view .sea-daily-note { border-left-color: #b86b8a; background: linear-gradient(145deg,#fff7fa,#fff); }
 @media(max-width:580px) { .sea-chat-compose .sea-preview { margin-left: 0; }.sea-chat-sender-picker { padding: 13px; }.sea-sender-options button { flex: 1 1 calc(50% - 7px); } }
 
 .sea-header-meta{display:flex;flex-direction:column;align-items:flex-end;gap:10px}.sea-last-fix{display:flex;align-items:flex-start;gap:9px;padding:10px 13px;border:1px solid #cfe5dc;border-radius:13px;background:#f3faf7;color:#216a62;max-width:340px}.sea-last-fix svg{flex:0 0 auto;margin-top:2px}.sea-last-fix strong,.sea-last-fix span{display:block}.sea-last-fix strong{font-size:12px;line-height:1.35}.sea-last-fix span{margin-top:3px;color:#66817d;font-size:10px;line-height:1.4}@media(max-width:760px){.sea-header-meta{align-items:stretch}.sea-last-fix{max-width:none}.sea-header-meta .sea-demo{text-align:left}}
