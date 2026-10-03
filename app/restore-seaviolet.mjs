@@ -5,7 +5,7 @@ const target=new URL('./dist/data/seaviolet-last-position.json',import.meta.url)
 try {
   const payload=await readFile(source,'utf8');
   const p=JSON.parse(payload);
-  if (p.mmsi!==248554000 || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude) || !Number.isFinite(Date.parse(p.observedAt))) throw Error('AIS cache invalid');
+  if (p.mmsi!==248554000 || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude) || Number.isInteger(p.latitude) && Number.isInteger(p.longitude) || !Number.isFinite(Date.parse(p.observedAt))) throw Error('Precise AIS cache invalid');
   await mkdir(dirname(target),{recursive:true});
   await writeFile(target+'.tmp',payload);
   await rename(target+'.tmp',target);

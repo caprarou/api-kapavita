@@ -274,15 +274,19 @@ async function pollVesselFinder() {
 }
 
 function scheduleFallback() {
-  const poll = kplerToken ? pollKpler : myShipTrackingKey ? pollMyShipTracking : pollVesselFinder;
-  void poll();
-  fallbackTimer = setInterval(() => void poll(), 15 * 60 * 1000);
+  // Position fallback providers are intentionally disabled. The map and current
+  // position must be driven only by precise AISStream reports.
+  console.log('AIS fallback providers disabled; using AISStream only');
 }
 
 async function restore() {
   try {
     const saved = JSON.parse(await readFile(cache, 'utf8'));
-    if (saved?.mmsi === mmsi) {
+    const preciseCache = saved?.mmsi === mmsi
+      && Number.isFinite(Number(saved.latitude))
+      && Number.isFinite(Number(saved.longitude))
+      && !(Number.isInteger(Number(saved.latitude)) && Number.isInteger(Number(saved.longitude)));
+    if (preciseCache) {
       lastPosition = saved;
       vesselDetails = {
         ...(cleanText(saved.destination) ? { destination: cleanText(saved.destination) } : {}),

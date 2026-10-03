@@ -238,7 +238,7 @@ def vessel_history(path):
  params=parse_qs(urlsplit(path).query)
  hours=max(1,min(int(params.get('hours',['24'])[0]),720))
  with psycopg.connect(DATA_DSN) as db:
-  rows=db.execute("SELECT observed_at,ST_Y(location),ST_X(location),speed_knots,course,heading,destination,eta,source_id FROM observations.vessel_positions WHERE mmsi=248554000 AND observed_at >= now() - (%s || ' hours')::interval ORDER BY observed_at",(hours,)).fetchall()
+  rows=db.execute("SELECT observed_at,ST_Y(location),ST_X(location),speed_knots,course,heading,destination,eta,source_id FROM observations.vessel_positions WHERE mmsi=248554000 AND source_id='aisstream' AND observed_at >= now() - (%s || ' hours')::interval ORDER BY observed_at",(hours,)).fetchall()
  return {'mmsi':248554000,'hours':hours,'points':[{'observedAt':r[0].isoformat(),'latitude':r[1],'longitude':r[2],'speedKnots':r[3],'course':r[4],'heading':r[5],'destination':r[6],'eta':r[7].isoformat() if r[7] else None,'source':r[8]} for r in rows]}
 
 def vessel_route(path):

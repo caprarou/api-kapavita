@@ -311,7 +311,7 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
     if (position) {
       const initialCourse = position.course ?? position.heading ?? bearingToDestination;
       vesselMarker = L.marker([position.latitude, position.longitude], { icon: vesselIcon(initialCourse) }).addTo(map);
-      vesselMarker.bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(initialCourse)}°${position.course != null ? ' · COG AIS' : position.heading != null ? ' · heading AIS' : ' · προσωρινή κατεύθυνση προς προορισμό'}`);
+      vesselMarker.bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(initialCourse)}°${isCoarseHistoricalFix(position) ? ' · ενδεικτική θέση χαμηλής ακρίβειας' : position.course != null ? ' · COG AIS' : position.heading != null ? ' · heading AIS' : ' · προσωρινή κατεύθυνση προς προορισμό'}`);
       boundsPoints.push([position.latitude, position.longitude]);
     }
     const anchors: Array<{ point: RoutePoint; label: string }> = [
@@ -354,20 +354,26 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
           .sort((a: Position, b: Position) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
         if (position && !historyPoints.some(item => item.observedAt === position.observedAt)) historyPoints.push(position);
         historyPoints.sort((a, b) => new Date(a.observedAt).getTime() - new Date(b.observedAt).getTime());
-        if (vesselMarker && position && position.course == null && position.heading == null && historyPoints.length >= 2) {
-          const before = historyPoints[historyPoints.length - 2];
-          const after = historyPoints[historyPoints.length - 1];
+        const routeHistoryPoints = historyPoints.filter((item) => !isCoarseHistoricalFix(item));
+        const coarseHistoryPoints = historyPoints.filter((item) => isCoarseHistoricalFix(item));
+        if (vesselMarker && position && position.course == null && position.heading == null && routeHistoryPoints.length >= 2) {
+          const before = routeHistoryPoints[routeHistoryPoints.length - 2];
+          const after = routeHistoryPoints[routeHistoryPoints.length - 1];
           const movementCourse = routeBearing(toRoutePoint(before), toRoutePoint(after));
           vesselMarker.setIcon(vesselIcon(movementCourse));
           vesselMarker.bindPopup(`SEAVIOLET · τελευταίο στίγμα · πορεία ${Math.round(movementCourse)}° · υπολογισμός από τα δύο τελευταία AIS στίγματα`);
         }
-        if (showActual) historyPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
+        if (showActual) routeHistoryPoints.slice(-RECENT_FIX_MARKERS).forEach(item => {
           L.circleMarker(toRoutePoint(item), { radius: 6.5, color: '#fff', weight: 2.4, fillColor: actualColor, fillOpacity: 1 })
             .addTo(map).bindTooltip(`AIS · ${dateGreece(new Date(item.observedAt))}`, { direction: 'top', offset: [0, -5] });
         });
+        if (showReconstructed) coarseHistoryPoints.slice(-12).forEach(item => {
+          L.circleMarker(toRoutePoint(item), { radius: 5, color: '#fff', weight: 1.8, fillColor: reconstructedColor, fillOpacity: 0.9 })
+            .addTo(map).bindTooltip(`Ενδεικτική θέση · χαμηλή ακρίβεια · ${dateGreece(new Date(item.observedAt))}`, { direction: 'top', offset: [0, -5] });
+        });
         const durationText = (from?: string, to?: string) => from && to ? formatVoyageTime(Math.max(0, (new Date(to).getTime() - new Date(from).getTime()) / 3600000)) : 'δεν υπολογίζεται';
         anchorMarkers.forEach(({ point, label, marker }) => {
-          const nearby = historyPoints.filter(item => nauticalMiles(point, toRoutePoint(item)) <= 12);
+          const nearby = routeHistoryPoints.filter(item => nauticalMiles(point, toRoutePoint(item)) <= 12);
           if (!nearby.length) {
             marker.bindPopup(`<strong>${label}</strong><br/><span class="sea-map-popup-muted">Δεν υπάρχουν ακόμη αρκετά AIS δεδομένα για να υπολογιστούν άφιξη, αναχώρηση και παραμονή.</span>`);
             return;
@@ -393,14 +399,14 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
           addGapMarker(route[route.length - 1], `Έναρξη επόμενου γνωστού σημείου · ${toLabel}`);
         };
         if (showRoute) {
-          const first = historyPoints[0];
+          const first = routeHistoryPoints[0];
           if (first) {
             const firstPoint = toRoutePoint(first);
             if (nauticalMiles(departure, firstPoint) > 8) await reconstructed(departure, firstPoint, 'Λεμεσός', 'πρώτο επιβεβαιωμένο AIS', undefined, first.observedAt);
           }
-          for (let i = 1; i < historyPoints.length; i += 1) {
-            const before = historyPoints[i - 1];
-            const after = historyPoints[i];
+          for (let i = 1; i < routeHistoryPoints.length; i += 1) {
+            const before = routeHistoryPoints[i - 1];
+            const after = routeHistoryPoints[i];
             const from = toRoutePoint(before), to = toRoutePoint(after);
             const distance = nauticalMiles(from, to);
             const hours = Math.max(0, (new Date(after.observedAt).getTime() - new Date(before.observedAt).getTime()) / 3600000);
