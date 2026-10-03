@@ -16,7 +16,7 @@ const parseGreetingItems = (items: unknown): Greeting[] => {
   return items.map((item) => {
     const entry = item as Record<string, unknown>;
     return { text: String(entry.text ?? '').slice(0, 180), area: String(entry.area ?? 'Χωρίς περιοχή'), time: new Date(String(entry.time ?? '')) };
-  }).filter((item) => item.text.trim() && Number.isFinite(item.time.getTime())).slice(0, 5);
+  }).filter((item) => item.text.trim() && Number.isFinite(item.time.getTime())).sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 5);
 };
 const greetingAreaLabel = (area: string) => area && area !== 'Χωρίς κοινοποίηση περιοχής' && area !== 'Χωρίς περιοχή' ? ` · ${area}` : '';
 const readGreetingHistory = (): Greeting[] => {
