@@ -406,12 +406,11 @@ function VesselMap({ position, showRoute, filters, historyWindow, onHistoryWindo
             const hours = Math.max(0, (new Date(after.observedAt).getTime() - new Date(before.observedAt).getTime()) / 3600000);
             const hasMovement = distance >= 0.05;
             const approximate = isCoarseHistoricalFix(before) || isCoarseHistoricalFix(after);
-            const actual = hasMovement && hours <= 2 && (distance <= 80 || approximate);
-            if (actual && (showActual || (approximate && showReconstructed))) {
-              const lineColor = approximate ? reconstructedColor : actualColor;
-              const dashArray = approximate ? '7 9' : undefined;
-              const label = approximate ? '<strong>Ενδεικτική διαδρομή AIS</strong><br/>Στρογγυλοποιημένο fallback σημείο · όχι ακριβής θέση' : '<strong>Επιβεβαιωμένη διαδρομή AIS</strong>';
-              addLine([from, to], lineColor, dashArray, `${label}<br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`, !approximate && i % 12 === 1);
+            const actual = hasMovement && !approximate && hours <= 2 && distance <= 80;
+            if (approximate && hasMovement && showReconstructed) {
+              await reconstructed(from, to, dateGreece(new Date(before.observedAt)), dateGreece(new Date(after.observedAt)), before.observedAt, after.observedAt);
+            } else if (actual && showActual) {
+              addLine([from, to], actualColor, undefined, `<strong>Επιβεβαιωμένη διαδρομή AIS</strong><br/>${dateGreece(new Date(before.observedAt))} → ${dateGreece(new Date(after.observedAt))}<br/><strong>${Math.round(distance)} ν.μ.</strong> · ${formatVoyageTime(hours)}`, i % 12 === 1);
             } else if (hasMovement && showReconstructed) {
               await reconstructed(from, to, dateGreece(new Date(before.observedAt)), dateGreece(new Date(after.observedAt)), before.observedAt, after.observedAt);
             }
