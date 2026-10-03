@@ -538,6 +538,19 @@ function validPosition(raw: unknown): Position | null {
   if (p.mmsi !== 248554000 || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat)>90 || Math.abs(lon)>180 || !Number.isFinite(date.getTime()) || date.getTime()>Date.now()+600000 || typeof p.source !== 'string' || !p.source.trim()) return null;
   return { mmsi:248554000, latitude:lat, longitude:lon, observedAt:date.toISOString(), source:p.source, speedKnots:typeof p.speedKnots==='number' ? p.speedKnots : undefined, course:typeof p.course==='number' ? p.course : undefined, heading:typeof p.heading==='number' ? p.heading : undefined, destination:typeof p.destination==='string' ? p.destination : undefined, eta:typeof p.eta==='string' ? p.eta : undefined };
 }
+function samePosition(a: Position | null, b: Position | null) {
+  if (!a || !b) return a === b;
+  return a.mmsi === b.mmsi
+    && a.latitude === b.latitude
+    && a.longitude === b.longitude
+    && a.observedAt === b.observedAt
+    && a.source === b.source
+    && (a.speedKnots ?? null) === (b.speedKnots ?? null)
+    && (a.course ?? null) === (b.course ?? null)
+    && (a.heading ?? null) === (b.heading ?? null)
+    && (a.destination ?? null) === (b.destination ?? null)
+    && (a.eta ?? null) === (b.eta ?? null);
+}
 export function Seaviolet() {
   const [view,setView] = useState<View>('family');
   const [context,setContext] = useState<Context>('Εν πλω');
@@ -592,7 +605,10 @@ export function Seaviolet() {
     let alive = true;
     const read = async () => { try {
       const response = await fetch('/api/v1/vessel/seaviolet', { cache:'no-store', credentials:'same-origin' });
-      if (response.ok && alive) setPosition(validPosition(await response.json()));
+      if (!response.ok || !alive) return;
+      const next = validPosition(await response.json());
+      if (!next) return;
+      setPosition((previous) => samePosition(previous, next) ? previous : next);
     } catch { /* AIS feed is optional; keep last known position in the session. */ } };
     void read(); const t = window.setInterval(() => void read(), 60000);
     return () => { alive = false; window.clearInterval(t); };
