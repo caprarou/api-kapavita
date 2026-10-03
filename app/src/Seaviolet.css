@@ -133,6 +133,26 @@
 .sea-daily-events{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}.sea-daily-events article{padding:13px 14px;border:1px solid #d8ebe5;border-radius:14px;background:#ffffffcc}.sea-event-label{display:block;color:#167d73;font-size:9px;font-weight:800;letter-spacing:.12em}.sea-daily-events h3{margin:7px 0 5px;color:#214e58;font-size:14px}.sea-daily-events article p{font:12px/1.5 Inter,system-ui,sans-serif;color:#5e7879}.sea-daily-events article small{margin-top:8px;font-size:9px}@media (max-width:760px){.sea-daily-events{grid-template-columns:1fr}}
 .sea-lesson{margin-top:20px;padding:18px;border:1px solid #cfe5dc;border-radius:16px;background:linear-gradient(135deg,#eaf7f0,#fff)}.sea-lesson-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#78918f;font-size:10px}.sea-lesson-badge{color:#147d72;font-weight:900;letter-spacing:.12em}.sea-lesson h3{margin:9px 0;color:#214e58;font-size:17px}.sea-lesson ol{margin:0 0 14px;padding-left:20px;color:#567476;font-size:12px;line-height:1.7}.sea-lesson-question{padding-top:13px;border-top:1px solid #d5e9e1}.sea-lesson-question strong{display:block;color:#315a5b;font-size:12px}.sea-lesson-question div{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.sea-lesson-question button{border:1px solid #c5dfd5;border-radius:999px;padding:8px 13px;background:#fff;color:#28766e;font-size:11px;font-weight:800;cursor:pointer}.sea-lesson-question button:hover,.sea-lesson-question button.chosen{background:#147d72;color:#fff}.sea-lesson-question p{margin:10px 0 0;color:#4e7771;font-size:11px;line-height:1.5}
 .sea-lesson-source{display:block;margin:-5px 0 12px;color:#728b89;font-size:10px;line-height:1.4}
+
+.sea-greeting-sender { display: inline-flex; align-items: center; gap: 6px; margin-top: 19px; padding: 6px 10px; border-radius: 999px; background: #eaf6f1; color: #26776e; font-size: 11px; font-weight: 800; }
+.sea-history-sender { display: block; color: #28796f; font-size: 10px; letter-spacing: .02em; }
+.sea-chat-compose { background: linear-gradient(145deg,#ffffff 0%,#f3fbf8 100%); border-color: #cfe6df; box-shadow: 0 12px 34px #1f615414; }
+.sea-chat-compose .sea-card-heading { padding-bottom: 15px; border-bottom: 1px solid #dcece7; }
+.sea-chat-sender-picker { margin: 19px 0 16px; padding: 15px; border: 1px solid #cde5dd; border-radius: 16px; background: #f8fcfa; }
+.sea-chat-sender-picker .sea-label { margin-top: 0; }
+.sea-sender-options { display: flex; flex-wrap: wrap; gap: 7px; }
+.sea-sender-options button { padding: 9px 12px; border: 1px solid #cfe2dc; border-radius: 999px; background: #fff; color: #4e7472; cursor: pointer; font-size: 11px; font-weight: 750; }
+.sea-sender-options button:hover, .sea-sender-options button.chosen { border-color: #63b6a3; background: #def3eb; color: #14766b; }
+.sea-chat-sender-picker .sea-input { background: #fff; }
+.sea-chat-sender-preview { margin: 9px 0 0; color: #7a9290; font-size: 11px; }
+.sea-chat-sender-preview strong { color: #26776e; }
+.sea-preview-sender { color: #26776e !important; font-size: 11px !important; font-weight: 800; }
+.sea-chat-compose .sea-compose-intro { margin: 17px 0 22px; padding: 13px 15px; border-radius: 5px 16px 16px 16px; background: #eaf6f1; color: #4d7775; }
+.sea-chat-compose .sea-choice, .sea-chat-compose .sea-phrases { padding: 13px; border-radius: 16px; background: #fff; border: 1px solid #e4efeb; }
+.sea-chat-compose .sea-preview { margin-left: 8%; border-radius: 16px 16px 5px 16px; background: #fff3f7; border-color: #efd6df; }
+.sea-crew-view .sea-side-card { border-color: #d7e9e3; background: #fbfefd; }
+@media(max-width:580px) { .sea-chat-compose .sea-preview { margin-left: 0; }.sea-chat-sender-picker { padding: 13px; }.sea-sender-options button { flex: 1 1 calc(50% - 7px); } }
+
 .sea-header-meta{display:flex;flex-direction:column;align-items:flex-end;gap:10px}.sea-last-fix{display:flex;align-items:flex-start;gap:9px;padding:10px 13px;border:1px solid #cfe5dc;border-radius:13px;background:#f3faf7;color:#216a62;max-width:340px}.sea-last-fix svg{flex:0 0 auto;margin-top:2px}.sea-last-fix strong,.sea-last-fix span{display:block}.sea-last-fix strong{font-size:12px;line-height:1.35}.sea-last-fix span{margin-top:3px;color:#66817d;font-size:10px;line-height:1.4}@media(max-width:760px){.sea-header-meta{align-items:stretch}.sea-last-fix{max-width:none}.sea-header-meta .sea-demo{text-align:left}}
 .sea-literary-quote{margin:16px 0 3px;padding:15px 17px;border-left:3px solid #c79555;border-radius:0 12px 12px 0;background:#fffaf2}.sea-literary-quote p{margin:7px 0 5px;color:#795c42;font:600 17px/1.5 Manrope,sans-serif}.sea-literary-quote small{color:#9a836e;font-size:10px;line-height:1.4}
 .sea-quote-choice-note{margin:8px 0 0;color:#718786;font-size:10px;line-height:1.45}.sea-phrases button.chosen{max-width:100%}

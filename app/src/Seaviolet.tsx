@@ -9,13 +9,14 @@ import { defaultVesselFilters, vesselFilterDefinitions, type VesselFilterConfig 
 
 type View = 'family' | 'crew';
 type Context = 'Εν πλω' | 'Αγκυροβολημένο' | 'Άφιξη' | 'Αναχώρηση' | 'Νύχτα';
-type Greeting = { text: string; area: string; time: Date };
+type Greeting = { sender: string; text: string; area: string; time: Date };
+const greetingSenders = ['Καπτεν Λιακος', 'Σία', 'Παππού Ηλίας', 'ΚΒ'];
 const greetingHistoryKey = 'liakos-greeting-history-v1';
 const parseGreetingItems = (items: unknown): Greeting[] => {
   if (!Array.isArray(items)) return [];
   return items.map((item) => {
     const entry = item as Record<string, unknown>;
-    return { text: String(entry.text ?? '').slice(0, 180), area: String(entry.area ?? 'Χωρίς περιοχή'), time: new Date(String(entry.time ?? '')) };
+    return { sender: String(entry.sender ?? 'Καπτεν Λιακος').slice(0, 80), text: String(entry.text ?? '').slice(0, 180), area: String(entry.area ?? 'Χωρίς περιοχή'), time: new Date(String(entry.time ?? '')) };
   }).filter((item) => item.text.trim() && Number.isFinite(item.time.getTime())).sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 5);
 };
 const greetingAreaLabel = (area: string) => area && area !== 'Χωρίς κοινοποίηση περιοχής' && area !== 'Χωρίς περιοχή' ? ` · ${area}` : '';
@@ -559,6 +560,8 @@ function samePosition(a: Position | null, b: Position | null) {
 export function Seaviolet() {
   const [view,setView] = useState<View>('family');
   const [context,setContext] = useState<Context>('Εν πλω');
+  const [selectedSender,setSelectedSender] = useState(greetingSenders[0]);
+  const [customSender,setCustomSender] = useState('');
   const [region,setRegion] = useState(regions[0]);
   const [template,setTemplate] = useState(recommended['Εν πλω']);
   const [custom,setCustom] = useState('');
@@ -593,7 +596,7 @@ export function Seaviolet() {
             method:'POST',
             headers:{'Content-Type':'application/json'},
             credentials:'same-origin',
-            body:JSON.stringify({ text:item.text, area:item.area, time:item.time.toISOString() }),
+            body:JSON.stringify({ sender:item.sender, text:item.text, area:item.area, time:item.time.toISOString() }),
           });
         }
         if (!local.length) return;
@@ -628,9 +631,10 @@ export function Seaviolet() {
   const seaQuote = seaQuotes[Math.floor(Date.now() / (8 * 60 * 60 * 1000)) % seaQuotes.length];
   const safeRegion = phrases[region] ?? '';
   const greetingText = quoteChoice ? seaQuote.text : (custom.trim() || (safeRegion ? template.replace('…', ' '+safeRegion) : template.replace(' από…','').replace('…','')));
+  const senderName = customSender.trim() || selectedSender;
   const chooseContext = (next:Context) => { setContext(next); setTemplate(recommended[next]); setCustom(''); setQuoteChoice(false); };
   const preview = () => {
-    const item = { text:greetingText, area:region, time:new Date() };
+    const item = { sender:senderName, text:greetingText, area:region, time:new Date() };
     setHistory(items => [item, ...items].slice(0, 5));
     setNotice(true);
     setView('family');
@@ -638,7 +642,7 @@ export function Seaviolet() {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       credentials:'same-origin',
-      body:JSON.stringify({ text:item.text, area:item.area, time:item.time.toISOString() }),
+      body:JSON.stringify({ sender:item.sender, text:item.text, area:item.area, time:item.time.toISOString() }),
     }).then(r => r.ok ? r.json() : null).then(data => {
       if (Array.isArray(data?.items)) setHistory(parseGreetingItems(data.items));
     }).catch(() => {});
@@ -687,15 +691,15 @@ export function Seaviolet() {
       {notice && <div className="sea-notice" role="status">Ο χαιρετισμός αποθηκεύτηκε στον server του Netcup και εμφανίστηκε στην οικογενειακή προβολή.<button aria-label="Κλείσιμο ενημέρωσης" onClick={()=>setNotice(false)}><X size={15}/></button></div>}
       {vessel}
       <section className="sea-card sea-message"><div className="sea-card-heading"><span className="sea-card-icon sea-heart"><Heart size={19}/></span><div><span className="sea-eyebrow">ΜΑΣ ΕΣΤΕΙΛΕ ΧΑΙΡΕΤΙΣΜΟ</span><h2>Μια κουβέντα από τον Λιάκο</h2></div></div>
-      {history.length ? <><p className="sea-greeting">«{history[0].text}»</p><div className="sea-greeting-meta"><Clock3 size={14}/> {dateGreece(history[0].time)} · ώρα Ελλάδας{greetingAreaLabel(history[0].area)}</div></> : <div className="sea-empty"><MessageCircle size={26}/><strong>Δεν υπάρχει προσωπικός χαιρετισμός.</strong><span>Δοκίμασε την πλευρά του πληρώματος στην ίδια συσκευή. Η ώρα του χαιρετισμού είναι ξεχωριστή από την ώρα του τελευταίου στίγματος.</span></div>}</section>
-    </div><aside className="sea-side"><div className="sea-side-card"><MapPin size={21}/><h3>Πραγματική θέση πλοίου</h3><p>Η ένδειξη προέρχεται μόνο από το AIS και δείχνει το τελευταίο στίγμα, την ώρα λήψης και την πορεία όταν υπάρχουν διαθέσιμα δεδομένα.</p></div><div className="sea-history"><h3>Ιστορικό χαιρετισμών</h3>{history.length ? history.map((item,index)=><div key={index}><span>«{item.text}»</span><small>{dateGreece(item.time)} · ώρα Ελλάδας{greetingAreaLabel(item.area)}</small></div>) : <p>Δεν υπάρχουν ακόμη αποθηκευμένοι χαιρετισμοί.</p>}</div><div className="sea-side-card"><Radio size={21}/><h3>Ζωντανό μήνυμα από τη θάλασσα</h3><p>Η φράση ανανεώνεται κάθε 8 ώρες και μπορεί να επιλεγεί ως μήνυμα για την οικογένεια.</p><button className="sea-link-button" onClick={()=>setView('crew')}>Άνοιξε την επιλογή</button></div><div className="sea-side-card"><ShieldCheck size={21}/><h3>Χαιρετισμός και ιστορικό</h3><p>Η οικογένεια και το πλήρωμα εναλλάσσονται στον ίδιο browser. Τα τελευταία μηνύματα αποθηκεύονται στον server του Netcup.</p></div><button className="sea-switch" onClick={()=>setView('crew')}>Πλευρά πληρώματος <ArrowRight size={16}/></button></aside></div>
-    : <div className="sea-layout"><div className="sea-main"><section className="sea-card sea-compose"><div className="sea-card-heading"><span className="sea-card-icon sea-heart"><Heart size={19}/></span><div><span className="sea-eyebrow">ΕΝΑ ΑΓΓΙΓΜΑ</span><h2>Στείλε ένα σημάδι ότι είσαι καλά</h2></div></div><p className="sea-compose-intro">Επίλεξε μια σύντομη φράση ή γράψε τη δική σου. Το μήνυμα αποθηκεύεται στον server του Netcup και εμφανίζεται στην οικογενειακή προβολή.</p>
+      {history.length ? <><div className="sea-greeting-sender"><MessageCircle size={14}/> {history[0].sender}</div><p className="sea-greeting">«{history[0].text}»</p><div className="sea-greeting-meta"><Clock3 size={14}/> {dateGreece(history[0].time)} · ώρα Ελλάδας{greetingAreaLabel(history[0].area)}</div></> : <div className="sea-empty"><MessageCircle size={26}/><strong>Δεν υπάρχει προσωπικός χαιρετισμός.</strong><span>Δοκίμασε την πλευρά του πληρώματος στην ίδια συσκευή. Η ώρα του χαιρετισμού είναι ξεχωριστή από την ώρα του τελευταίου στίγματος.</span></div>}</section>
+    </div><aside className="sea-side"><div className="sea-side-card"><MapPin size={21}/><h3>Πραγματική θέση πλοίου</h3><p>Η ένδειξη προέρχεται μόνο από το AIS και δείχνει το τελευταίο στίγμα, την ώρα λήψης και την πορεία όταν υπάρχουν διαθέσιμα δεδομένα.</p></div><div className="sea-history"><h3>Ιστορικό χαιρετισμών</h3>{history.length ? history.map((item,index)=><div key={index}><strong className="sea-history-sender">{item.sender}</strong><span>«{item.text}»</span><small>{dateGreece(item.time)} · ώρα Ελλάδας{greetingAreaLabel(item.area)}</small></div>) : <p>Δεν υπάρχουν ακόμη αποθηκευμένοι χαιρετισμοί.</p>}</div><div className="sea-side-card"><Radio size={21}/><h3>Ζωντανό μήνυμα από τη θάλασσα</h3><p>Η φράση ανανεώνεται κάθε 8 ώρες και μπορεί να επιλεγεί ως μήνυμα για την οικογένεια.</p><button className="sea-link-button" onClick={()=>setView('crew')}>Άνοιξε την επιλογή</button></div><div className="sea-side-card"><ShieldCheck size={21}/><h3>Χαιρετισμός και ιστορικό</h3><p>Η οικογένεια και το πλήρωμα εναλλάσσονται στον ίδιο browser. Τα τελευταία μηνύματα αποθηκεύονται στον server του Netcup.</p></div><button className="sea-switch" onClick={()=>setView('crew')}>Πλευρά πληρώματος <ArrowRight size={16}/></button></aside></div>
+    : <div className="sea-layout sea-crew-view"><div className="sea-main"><section className="sea-card sea-compose sea-chat-compose"><div className="sea-card-heading"><span className="sea-card-icon sea-heart"><Heart size={19}/></span><div><span className="sea-eyebrow">ΕΝΑ ΑΓΓΙΓΜΑ</span><h2>Στείλε ένα σημάδι ότι είσαι καλά</h2></div></div><div className="sea-chat-sender-picker"><span className="sea-label">Ποιος στέλνει το μήνυμα;</span><div className="sea-sender-options">{greetingSenders.map(item=><button type="button" key={item} className={selectedSender===item&&!customSender?'chosen':''} aria-pressed={selectedSender===item&&!customSender} onClick={()=>{setSelectedSender(item);setCustomSender('');}}>{item}</button>)}</div><label className="sea-label" htmlFor="sea-custom-sender">Άλλο όνομα</label><input id="sea-custom-sender" className="sea-input" maxLength={80} placeholder="Γράψε όνομα…" value={customSender} onChange={e=>setCustomSender(e.target.value)}/><p className="sea-chat-sender-preview">Αποστολέας: <strong>{senderName}</strong></p></div><p className="sea-compose-intro">Επίλεξε μια σύντομη φράση ή γράψε τη δική σου. Το μήνυμα αποθηκεύεται στον server του Netcup και εμφανίζεται στην οικογενειακή προβολή.</p>
       <span className="sea-label">Περίσταση</span><div className="sea-choice">{(Object.keys(recommended) as Context[]).map(item=><button key={item} className={context===item?'chosen':''} onClick={()=>chooseContext(item)}>{item}</button>)}</div>
       <label className="sea-label" htmlFor="sea-region">Περιοχή που θέλεις να αναφέρεις στον χαιρετισμό</label><select id="sea-region" className="sea-input" value={region} onChange={e=>setRegion(e.target.value)}><option value={regions[0]}>{regions[0]}</option>{regionGroups.map(group=><optgroup key={group.label} label={group.label}>{group.entries.map(item=><option value={item.name} key={item.name}>{item.name}</option>)}</optgroup>)}</select>
       <p className="sea-only-preview">{suggestion && !stale ? <>Πρόταση από το τελευταίο στίγμα πλοίου: <button className="sea-link-button" onClick={()=>setRegion(suggestion)}>{suggestion}</button>. Επίλεξέ την μόνο αν θέλεις να την αναφέρεις.</> : 'Δεν προτείνεται περιοχή από πρόσφατο στίγμα. Επίλεξε γενική θάλασσα ή χωρίς περιοχή.'}</p>
       <span className="sea-label">Έτοιμος χαιρετισμός <small>· Πρόταση: {recommended[context]}</small></span><div className="sea-phrases">{templates.map(item=><button key={item} className={template===item&&!custom&&!quoteChoice?'chosen':''} onClick={()=>{setTemplate(item);setCustom('');setQuoteChoice(false);}}>{item}</button>)}<button className={quoteChoice?'chosen':''} onClick={()=>{setQuoteChoice(true);setCustom('');}}>«{seaQuote.text}»</button></div><p className="sea-quote-choice-note">Η φράση της θάλασσας αλλάζει κάθε 8 ώρες και μπορεί να σταλεί ως προσωπικό μήνυμα στην οικογενειακή προβολή.</p>
       <label className="sea-label" htmlFor="sea-custom">Ή γράψε κάτι δικό σου (προαιρετικό)</label><textarea id="sea-custom" className="sea-input" rows={2} maxLength={180} placeholder="Μέχρι δύο σύντομες γραμμές…" value={custom} onChange={e=>{setCustom(e.target.value);setQuoteChoice(false);}}/>
-      <div className="sea-preview"><small>Πώς θα το δει η οικογένεια</small><strong>«{greetingText}»</strong><span>{region} · {dateGreece(now)} (ώρα Ελλάδας)</span></div><button className="sea-primary" onClick={preview}><Heart size={17}/> Δες το στην οικογενειακή προβολή</button><p className="sea-only-preview">Το μήνυμα αποθηκεύεται στον server του Netcup και παραμένει στο ιστορικό μετά από ανανέωση.</p>
+      <div className="sea-preview"><span className="sea-preview-sender">Από: {senderName}</span><small>Πώς θα το δει η οικογένεια</small><strong>«{greetingText}»</strong><span>{region} · {dateGreece(now)} (ώρα Ελλάδας)</span></div><button className="sea-primary" onClick={preview}><Heart size={17}/> Δες το στην οικογενειακή προβολή</button><p className="sea-only-preview">Το μήνυμα αποθηκεύεται στον server του Netcup και παραμένει στο ιστορικό μετά από ανανέωση.</p>
     </section>{vessel}</div><aside className="sea-side"><div className="sea-side-card"><Radio size={21}/><h3>Ζωντανό μήνυμα από τη θάλασσα</h3><p>Η φράση ανανεώνεται αυτόματα κάθε 8 ώρες και μπορεί να σταλεί ως μήνυμα στην οικογενειακή προβολή.</p><button className="sea-link-button" onClick={()=>{setQuoteChoice(true);setCustom('');window.setTimeout(()=>document.getElementById('sea-custom')?.scrollIntoView({behavior:'smooth',block:'center'}),0);}}>Επίλεξε την τρέχουσα φράση</button></div><div className="sea-side-card"><Anchor size={21}/><h3>Ακριβής ώρα πλοίου</h3><p>Το πλήρωμα μπορεί να επιλέξει τη ζώνη UTC που ακολουθεί στο πλοίο. Η επιλογή αποθηκεύεται μόνο σε αυτή τη συσκευή.</p></div></aside></div>}
   <section className="sea-card sea-daily-note"><span className="sea-eyebrow">ΣΗΜΕΡΑ ΣΤΗ ΘΑΛΑΣΣΑ</span><h2>{daily.title}</h2><p>«{daily.text}»</p><small>{daily.source}</small><div className="sea-lesson"><div className="sea-lesson-head"><span className="sea-lesson-badge">ΜΑΘΗΜΑ 3 ΛΕΠΤΩΝ</span><span>Σύντομη άσκηση γέφυρας</span></div><h3>{lesson.title}</h3><ol>{lesson.steps.map(step=><li key={step}>{step}</li>)}</ol><small className="sea-lesson-source">Βάση: {lesson.source}</small><div className="sea-lesson-question"><strong>{lesson.question}</strong><div>{lesson.options.map(option=><button key={option} className={lessonAnswer===option?'chosen':''} onClick={()=>setLessonAnswer(option)}>{option}</button>)}</div>{lessonAnswer && <p>{lessonAnswer===lesson.options[0] ? lesson.answer : lesson.hint}</p>}</div></div></section>
   </div>;

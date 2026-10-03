@@ -92,8 +92,13 @@ def init():
   CREATE TABLE IF NOT EXISTS flags (key TEXT PRIMARY KEY, enabled INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS visits (day TEXT NOT NULL, page TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(day,page));
-  CREATE TABLE IF NOT EXISTS seaviolet_greetings (id INTEGER PRIMARY KEY AUTOINCREMENT, created INTEGER NOT NULL, text TEXT NOT NULL, area TEXT NOT NULL DEFAULT 'Χωρίς περιοχή', device TEXT NOT NULL DEFAULT '');
+  CREATE TABLE IF NOT EXISTS seaviolet_greetings (id INTEGER PRIMARY KEY AUTOINCREMENT, created INTEGER NOT NULL, sender TEXT NOT NULL DEFAULT 'Καπτεν Λιακος', text TEXT NOT NULL, area TEXT NOT NULL DEFAULT 'Χωρίς περιοχή', device TEXT NOT NULL DEFAULT '');
   CREATE INDEX IF NOT EXISTS idx_seaviolet_greetings_created ON seaviolet_greetings(created DESC);
+  """)
+  columns={row['name'] for row in c.execute('PRAGMA table_info(seaviolet_greetings)')}
+  if 'sender' not in columns:
+   c.execute("ALTER TABLE seaviolet_greetings ADD COLUMN sender TEXT NOT NULL DEFAULT 'Καπτεν Λιακος'")
+  c.executescript("""
   CREATE TABLE IF NOT EXISTS vessel_filters (key TEXT PRIMARY KEY, enabled INTEGER NOT NULL, options TEXT NOT NULL);
   """)
   for key, enabled in {**FEATURES, **{f'vessel_field_{k}':v for k,v in VESSEL_FIELDS.items()}}.items(): c.execute('INSERT OR IGNORE INTO flags VALUES (?,?)',(key,int(enabled)))
@@ -120,8 +125,8 @@ def vessel_fields(conn):
   result[key]=bool(row['enabled']) if row else VESSEL_FIELDS[key]
  return result
 def seaviolet_greetings(conn):
- rows=conn.execute('SELECT text,area,created FROM seaviolet_greetings ORDER BY id DESC LIMIT 5').fetchall()
- return [{'text':row['text'],'area':row['area'],'time':dt.datetime.fromtimestamp(row['created'],dt.timezone.utc).isoformat()} for row in rows]
+ rows=conn.execute('SELECT sender,text,area,created FROM seaviolet_greetings ORDER BY id DESC LIMIT 5').fetchall()
+ return [{'sender':row['sender'],'text':row['text'],'area':row['area'],'time':dt.datetime.fromtimestamp(row['created'],dt.timezone.utc).isoformat()} for row in rows]
 def vessel_filters(conn):
  result={}
  for key, config in VESSEL_FILTERS.items():
@@ -384,6 +389,7 @@ class Handler(BaseHTTPRequestHandler):
     db.execute('INSERT INTO visits(day,page,views) VALUES (?,?,1) ON CONFLICT(day,page) DO UPDATE SET views=views+1',(day,page))
     self.reply(200,{'ok':True});return
    if path=='/api/v1/seaviolet/greetings' and self.command=='POST':
+    sender=str(payload.get('sender','Καπτεν Λιακος')).strip()[:80] or 'Καπτεν Λιακος'
     text=str(payload.get('text','')).strip()[:180]
     area=str(payload.get('area','Χωρίς περιοχή')).strip()[:120] or 'Χωρίς περιοχή'
     device=str(payload.get('device','')).strip()[:120]
@@ -397,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
       candidate=int(parsed.timestamp())
       if candidate <= int(time.time()) + 600: created=candidate
      except (TypeError,ValueError,OverflowError): pass
-    db.execute('INSERT INTO seaviolet_greetings(created,text,area,device) VALUES (?,?,?,?)',(created,text,area,device))
+    db.execute('INSERT INTO seaviolet_greetings(created,sender,text,area,device) VALUES (?,?,?,?,?)',(created,sender,text,area,device))
     self.reply(201,{'items':seaviolet_greetings(db)})
     return
    if path=='/api/login' and self.command=='POST':
