@@ -12,6 +12,7 @@ if (!key) {
 }
 const myShipTrackingKey = process.env.MYSHIPTRACKING_API_KEY;
 const kplerToken = process.env.KPLER_API_TOKEN;
+const openWatersToken = process.env.OPENWATERS_API_TOKEN;
 const execFileAsync = promisify(execFile);
 
 const mmsi = 248554000;
@@ -79,7 +80,7 @@ async function writePosition(position) {
 async function saveHistory(position, raw = {}) {
   const q = value => value === null || value === undefined ? 'NULL' : "'" + String(value).replace(/'/g, "''") + "'";
   const rawJson = JSON.stringify(raw).replace(/'/g, "''");
-  const sourceId = position.source?.startsWith('Kpler') ? 'kpler' : position.source?.startsWith('MyShipTracking') ? 'myshiptracking' : position.source?.startsWith('VesselFinder') ? 'vesselfinder-api' : 'aisstream';
+  const sourceId = position.source?.startsWith('Kpler') ? 'kpler' : position.source?.startsWith('MyShipTracking') ? 'myshiptracking' : position.source?.startsWith('VesselFinder') ? 'vesselfinder-api' : position.source?.startsWith('Open Waters AIS') ? 'openwaters' : 'aisstream';
   const sql = `INSERT INTO observations.vessels (mmsi, name, properties, updated_at) VALUES (${position.mmsi}, 'SEAVIOLET', '${rawJson}'::jsonb, now()) ON CONFLICT (mmsi) DO UPDATE SET properties=observations.vessels.properties || EXCLUDED.properties, updated_at=now(); INSERT INTO observations.vessel_positions (mmsi, observed_at, source_id, location, speed_knots, course, heading, destination, raw) VALUES (${position.mmsi}, ${q(position.observedAt)}::timestamptz, ${q(sourceId)}, ST_SetSRID(ST_Point(${position.longitude},${position.latitude}),4326), ${position.speedKnots ?? 'NULL'}, ${position.course ?? 'NULL'}, ${position.heading ?? 'NULL'}, ${q(position.destination)}, '${rawJson}'::jsonb) ON CONFLICT (mmsi, observed_at, source_id) DO NOTHING;`;
   try { await execFileAsync('psql', ['--dbname=kapavita', '--set=ON_ERROR_STOP=1', '--command', sql]); } catch (error) { console.error('AIS history database write failed:', error.message); }
 }
@@ -97,6 +98,57 @@ function isNewer(position) {
   const candidate = new Date(position.observedAt).getTime();
   const previous = new Date(lastPosition.observedAt).getTime();
   return Number.isFinite(candidate) && (!Number.isFinite(previous) || candidate > previous);
+}
+
+async function pollOpenWaters() {
+  if (stopped) return;
+
+  try {
+    const headers = { Accept: 'application/geo+json, application/json' };
+    if (openWatersToken) headers.Authorization = `Bearer ${openWatersToken}`;
+    const response = await fetch(`https://ais.openwaters.io/v1/vessels/${mmsi}`, {
+      headers,
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok) {
+      console.error('Open Waters request failed:', response.status);
+      return;
+    }
+
+    const payload = await response.json();
+    const properties = payload?.properties;
+    const coordinates = payload?.geometry?.coordinates;
+    const longitude = number(coordinates?.[0]);
+    const latitude = number(coordinates?.[1]);
+    if (Number(payload?.id) !== mmsi || latitude === null || longitude === null
+      || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) {
+      console.error('Open Waters returned no valid SEAVIOLET position');
+      return;
+    }
+
+    const position = {
+      mmsi,
+      latitude,
+      longitude,
+      observedAt: observedAt(properties?.seen),
+      source: `Open Waters AIS · ${cleanText(properties?.source) || 'community network'}`,
+      ...(cleanText(properties?.destination) ? { destination: cleanText(properties.destination) } : {}),
+      ...(cleanText(properties?.eta) ? { eta: cleanText(properties.eta) } : {}),
+    };
+    const speed = number(properties?.sog);
+    if (speed !== null && speed >= 0 && speed <= 102.2) position.speedKnots = speed;
+    const course = number(properties?.cog);
+    if (course !== null && course >= 0 && course <= 360) position.course = course;
+    const heading = number(properties?.heading);
+    if (heading !== null && heading >= 0 && heading <= 360) position.heading = heading;
+
+    if (isNewer(position)) {
+      await save(position, payload);
+      console.log('Received SEAVIOLET Open Waters position', position.observedAt);
+    }
+  } catch (error) {
+    console.error('Open Waters request:', error.message);
+  }
 }
 
 async function pollMyShipTracking() {
@@ -274,9 +326,11 @@ async function pollVesselFinder() {
 }
 
 function scheduleFallback() {
-  // Position fallback providers are intentionally disabled. The map and current
-  // position must be driven only by precise AISStream reports.
-  console.log('AIS fallback providers disabled; using AISStream only');
+  // Open Waters is used only as a personal-use fallback. AISStream remains primary;
+  // an older fallback report can never overwrite a newer AISStream position.
+  console.log('AIS fallback enabled: Open Waters personal tier');
+  void pollOpenWaters();
+  fallbackTimer = setInterval(() => void pollOpenWaters(), 5 * 60 * 1000);
 }
 
 async function restore() {
