@@ -400,7 +400,8 @@ function SpatialApp() {
   </div>;
 }
 export default function App() {
-  return window.location.pathname === '/kv' || window.location.pathname.startsWith('/kv/') ? <KVWorkspace /> : <SpatialApp />;
+  const mainProductHost = window.location.hostname === 'kapavita.gr' || window.location.hostname === 'www.kapavita.gr';
+  return mainProductHost || window.location.pathname === '/kv' || window.location.pathname.startsWith('/kv/') ? <KVWorkspace /> : <SpatialApp />;
 }
 
 

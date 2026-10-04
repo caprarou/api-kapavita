@@ -5,15 +5,17 @@
 - Date: 2026-10-04, Europe/Athens.
 - Canonical repository inspected: `caprarou/kapavita`.
 - Inspected repository commit: `ebe681a55194705062dfd5af1a3715f1a9b6441d` on `main`.
-- Public apex response: `https://kapavita.gr/` returns the existing Coming Soon page through Caddy.
-- Public API response: `https://api.kapavita.gr/` returns the existing KapaVita Spatial Intelligence SPA.
+- Public apex response: `https://kapavita.gr/` serves the KV shell through Caddy; `/api/*` is
+  reverse-proxied to the existing admin API.
+- Public API response: `https://api.kapavita.gr/` remains the existing KapaVita Spatial Intelligence SPA
+  and is retained as a reversible compatibility surface.
 - Server checkout inspection: clean `main` at the same commit, with `kapavita-admin.service` and
   the AIS collector active; the EEA timer is installed and scheduled.
 - Server runtime: Debian 13, Python 3.13.5, Node 20.19.2, PostgreSQL 17.11, Caddy on ports 80/443.
 - Existing PostgreSQL data is isolated in `catalog`, `geo`, `observations` and `pipeline`; current
   observed counts are catalog sources 40, datasets 48, geo areas 6,487 and vessel positions 599.
-- The first KV shell will be exposed at `https://api.kapavita.gr/kv` so the existing root map and
-  existing apex Coming Soon site remain reversible and undisturbed during foundation work.
+- The KV shell is exposed at `https://kapavita.gr/`; the `/kv` route and `api.kapavita.gr` remain
+  available as compatibility/rollback surfaces while the main product domain is validated.
 - The repository contains a React 19/Vite frontend, Python standard-library admin API, SQLite
   admin/session/audit state, Caddy configuration and systemd service definitions.
 - Existing repository documentation says PostgreSQL/PostGIS is planned for data/catalog storage

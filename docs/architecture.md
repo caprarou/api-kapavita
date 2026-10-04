@@ -38,5 +38,7 @@ Admin override actions should be auditable. Do not expose paid provider credenti
 
 ## Hosting
 
-The Vite frontend is a static build. Caddy serves `app/dist` at `api.kapavita.gr`.
+The Vite frontend is a static build. Caddy serves `app/dist` at the main product host
+`kapavita.gr`, with `/api/*` reverse-proxied to the Python admin API. The existing
+`api.kapavita.gr` surface remains available as a compatibility/rollback host.
 Third-party basemap availability is separate from application availability.

@@ -4,8 +4,8 @@
 |---|---|---|
 | Canonical memory and documentation | implemented | Canonical docs are being transferred with the foundation checkpoint. |
 | Repository and public endpoint inspection | verified locally | Repository SHA and HTTP responses recorded in Project Memory. |
-| Secure staging environment | implemented | Additive `/kv` surface reuses the inspected server, service and Caddy deployment boundary. |
-| Product shell/navigation | implemented | Responsive KV shell at `/kv`; existing Spatial Intelligence surface remains at `/`. |
+| Secure staging environment | implemented | Main-domain KV surface reuses the inspected server, service and Caddy deployment boundary. |
+| Product shell/navigation | implemented | Responsive KV shell at `kapavita.gr/`; `api.kapavita.gr` remains the compatibility Spatial Intelligence surface. |
 | Authentication foundation | implemented | KV uses existing server-side login/session/CSRF primitives; no browser secrets. |
 | Roles and entity-level permissions | implemented foundation | Owner/direct-grant checks are enforced server-side; admin does not bypass entity visibility. |
 | 2FA/passkeys/trusted devices | architecture-ready | Extension contract is represented; enrollment and enforcement remain the next hardening task. |
