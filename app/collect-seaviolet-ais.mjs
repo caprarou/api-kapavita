@@ -120,8 +120,10 @@ async function pollOpenWaters() {
     const coordinates = payload?.geometry?.coordinates;
     const longitude = number(coordinates?.[0]);
     const latitude = number(coordinates?.[1]);
+    const seenDate = typeof properties?.seen === 'string' ? new Date(properties.seen) : null;
     if (Number(payload?.id) !== mmsi || latitude === null || longitude === null
-      || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) {
+      || Math.abs(latitude) > 90 || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)
+      || !seenDate || !Number.isFinite(seenDate.getTime())) {
       console.error('Open Waters returned no valid SEAVIOLET position');
       return;
     }
@@ -130,7 +132,7 @@ async function pollOpenWaters() {
       mmsi,
       latitude,
       longitude,
-      observedAt: observedAt(properties?.seen),
+      observedAt: seenDate.toISOString(),
       source: `Open Waters AIS · ${cleanText(properties?.source) || 'community network'}`,
       ...(cleanText(properties?.destination) ? { destination: cleanText(properties.destination) } : {}),
       ...(cleanText(properties?.eta) ? { eta: cleanText(properties.eta) } : {}),
