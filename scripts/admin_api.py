@@ -16,6 +16,7 @@ import sys
 import time
 import datetime as dt
 import base64
+import uuid
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
@@ -24,6 +25,16 @@ try:
  import psycopg
 except ImportError:
  psycopg = None
+
+KV_ENTITY_TYPES = ('person', 'company', 'place', 'property', 'asset', 'vehicle', 'account', 'device', 'document')
+KV_SENSITIVITIES = ('internal', 'private', 'sensitive', 'location')
+KV_LAYOUT_IDS = ('attention', 'entities', 'connectors', 'security')
+KV_DEFAULT_LAYOUT = [
+ {'i': 'attention', 'x': 0, 'y': 0, 'w': 6, 'h': 2, 'minW': 3, 'minH': 2},
+ {'i': 'entities', 'x': 6, 'y': 0, 'w': 6, 'h': 2, 'minW': 3, 'minH': 2},
+ {'i': 'connectors', 'x': 0, 'y': 2, 'w': 4, 'h': 2, 'minW': 3, 'minH': 2},
+ {'i': 'security', 'x': 4, 'y': 2, 'w': 8, 'h': 2, 'minW': 4, 'minH': 2},
+]
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = Path(os.environ.get('KAPAVITA_ADMIN_DB', '/home/dev/.local/share/kapavita/admin.sqlite3'))
@@ -238,6 +249,75 @@ def server_status():
  return {'diskFreeGb':round(free/1073741824,1),'diskTotalGb':round(total/1073741824,1),'memoryAvailableMb':mem_mb,'database':database,'docker':docker_state,'aisFile':VESSEL.exists(),'loadAverage1m':round(os.getloadavg()[0],2),'uptimeHours':round(float(Path('/proc/uptime').read_text().split()[0])/3600,1),'serverTime':int(time.time())}
 def username_ok(username): return isinstance(username,str) and re.fullmatch(r'[a-z0-9_.-]{3,32}',username) is not None
 
+def kv_connect():
+ if psycopg is None: raise RuntimeError('Η βάση KV δεν είναι διαθέσιμη.')
+ return psycopg.connect(DATA_DSN)
+
+def kv_json(value):
+ if isinstance(value,dict): return value
+ if isinstance(value,str):
+  try: parsed=json.loads(value); return parsed if isinstance(parsed,dict) else {}
+  except (TypeError,ValueError): return {}
+ return {}
+
+def kv_visible_entities(conn,user_id):
+ with conn.cursor() as cur:
+  cur.execute('''SELECT DISTINCT e.id,e.entity_type,e.display_name,e.sensitivity,e.owner_user_id,e.metadata,e.created_at,e.updated_at
+                 FROM kv.entities e
+                 LEFT JOIN kv.entity_grants g ON g.entity_id=e.id AND g.user_id=%s
+                   AND (g.expires_at IS NULL OR g.expires_at > now())
+                 WHERE e.owner_user_id=%s OR g.permission IN ('view','edit','manage')
+                 ORDER BY e.updated_at DESC,e.display_name''',(user_id,user_id))
+  rows=cur.fetchall()
+ return [{'id':row[0],'type':row[1],'name':row[2],'sensitivity':row[3],'ownerUserId':row[4],
+          'metadata':kv_json(row[5]),'createdAt':row[6].isoformat(),'updatedAt':row[7].isoformat()}
+         for row in rows]
+
+def kv_has_permission(conn,user_id,entity_id,permission='view'):
+ rank={'view':1,'edit':2,'manage':3}[permission]
+ with conn.cursor() as cur:
+  cur.execute('''SELECT EXISTS(
+                 SELECT 1 FROM kv.entities e WHERE e.id=%s AND e.owner_user_id=%s
+               ) OR EXISTS(
+                 SELECT 1 FROM kv.entity_grants g
+                 WHERE g.entity_id=%s AND g.user_id=%s
+                   AND (g.expires_at IS NULL OR g.expires_at > now())
+                   AND CASE g.permission WHEN 'view' THEN 1 WHEN 'edit' THEN 2 WHEN 'manage' THEN 3 END >= %s
+               )''',(entity_id,user_id,entity_id,user_id,rank))
+  return bool(cur.fetchone()[0])
+
+def kv_event(conn,user,event_type,outcome,resource_type=None,resource_id=None,detail=None):
+ with conn.cursor() as cur:
+  cur.execute('''INSERT INTO kv.security_events(actor_user_id,actor_label,event_type,outcome,resource_type,resource_id,detail)
+                 VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb)''',
+              (user['id'] if user else None,user['username'] if user else 'anonymous',event_type,outcome,resource_type,resource_id,json.dumps(detail or {},ensure_ascii=False)))
+
+def kv_layout(conn,user_id):
+ with conn.cursor() as cur:
+  cur.execute('SELECT layout FROM kv.dashboard_layouts WHERE user_id=%s',(user_id,))
+  row=cur.fetchone()
+ if not row: return KV_DEFAULT_LAYOUT
+ layout=row[0]
+ if isinstance(layout,str):
+  try: layout=json.loads(layout)
+  except (TypeError,ValueError): layout=[]
+ return layout if isinstance(layout,list) else KV_DEFAULT_LAYOUT
+
+def kv_bootstrap(conn,user):
+ entities=kv_visible_entities(conn,user['id'])
+ counts={kind:sum(1 for entity in entities if entity['type']==kind) for kind in KV_ENTITY_TYPES}
+ return {'user':user_info(user),'entities':entities,'entityCounts':counts,'layout':kv_layout(conn,user['id']),
+         'connectorStates':[
+          {'id':'taxsee','label':'Taxsee / business finance','status':'extension-point'},
+          {'id':'money','label':'Personal & family money','status':'extension-point'},
+          {'id':'investments','label':'Investments & watchlists','status':'extension-point'},
+          {'id':'trading','label':'Copy Trader / MT4 / MT5','status':'extension-point'},
+          {'id':'calendar','label':'Google Calendar','status':'extension-point'},
+          {'id':'location','label':'KV Companion location','status':'consent-required'},
+         ],
+         'securityFoundation':{'denyByDefault':True,'adminLocationOverride':False,'serverSecretsOnly':True,
+                               'locationConsentRequired':True,'twoFactor':'architecture-ready','passkeys':'architecture-ready'}}
+
 def vessel_history(path):
  if psycopg is None: raise RuntimeError('PostGIS unavailable')
  params=parse_qs(urlsplit(path).query)
@@ -344,6 +424,16 @@ class Handler(BaseHTTPRequestHandler):
     self.reply(200,{'features':public,'vesselFields':vessel_fields(db),'vesselFilters':vessel_filters(db),'seavioletAllowed':public['seaviolet'] or bool(user and (user['role']=='admin' or 'seaviolet:view' in grants(user)))})
    elif path=='/api/session':
     self.reply(200,{'user':user_info(user) if user else None,'csrf':user['csrf'] if user else None})
+   elif path=='/api/kv/bootstrap':
+    if not user:self.reply(401,{'error':'Χρειάζεται σύνδεση για το KV.'});return
+    try:
+     with kv_connect() as kvdb:self.reply(200,kv_bootstrap(kvdb,user))
+    except Exception as error:self.reply(503,{'error':'Το KV foundation δεν είναι διαθέσιμο: '+str(error).splitlines()[0][:120]})
+   elif path=='/api/kv/entities':
+    if not user:self.reply(401,{'error':'Χρειάζεται σύνδεση για τις οντότητες KV.'});return
+    try:
+     with kv_connect() as kvdb:self.reply(200,{'entities':kv_visible_entities(kvdb,user['id'])})
+    except Exception as error:self.reply(503,{'error':'Οι οντότητες KV δεν είναι διαθέσιμες: '+str(error).splitlines()[0][:120]})
    elif path=='/api/v1/air/eea':
     if not flags(db).get('eeaAir', False):self.reply(403,{'error':'Το επίπεδο σταθμών είναι κλειστό.'});return
     try:
@@ -378,7 +468,7 @@ class Handler(BaseHTTPRequestHandler):
    user=principal(db,self.headers.get('Cookie',''))
    if path=='/api/visit' and self.command=='POST':
     page=payload.get('page')
-    if page not in ('map','catalog','seaviolet','admin'):self.reply(400,{'error':'Μη έγκυρη σελίδα.'});return
+    if page not in ('map','catalog','seaviolet','admin','kv'):self.reply(400,{'error':'Μη έγκυρη σελίδα.'});return
     ip=self.headers.get('X-Forwarded-For',self.client_address[0]).split(',')[0].strip()[:64]
     now=time.time()
     with VISIT_LOCK:
@@ -440,6 +530,58 @@ class Handler(BaseHTTPRequestHandler):
     db.execute('DELETE FROM sessions WHERE user_id=? AND token_hash<>?',(user['id'],user['token_hash']))
     audit(db,user['username'],'password-changed')
     self.reply(200,{'ok':True});return
+   if path=='/api/kv/entities' and self.command=='POST':
+    entity_type=payload.get('type'); name=str(payload.get('name','')).strip(); sensitivity=payload.get('sensitivity','private')
+    metadata=payload.get('metadata',{})
+    if entity_type not in KV_ENTITY_TYPES or not 1<=len(name)<=160 or sensitivity not in KV_SENSITIVITIES or not isinstance(metadata,dict):
+     self.reply(400,{'error':'Μη έγκυρη οντότητα KV.'});return
+    safe_metadata={str(key)[:40]:str(value)[:240] for key,value in metadata.items() if isinstance(key,str) and isinstance(value,(str,int,float,bool))}
+    entity_id=uuid.uuid4().hex
+    try:
+     with kv_connect() as kvdb:
+      with kvdb.cursor() as cur:
+       cur.execute('INSERT INTO kv.entities(id,entity_type,display_name,sensitivity,owner_user_id,metadata) VALUES (%s,%s,%s,%s,%s,%s::jsonb)',(entity_id,entity_type,name,sensitivity,user['id'],json.dumps(safe_metadata,ensure_ascii=False)))
+      kv_event(kvdb,user,'entity-created','success',entity_type,entity_id,{'sensitivity':sensitivity})
+     self.reply(201,{'entity':{'id':entity_id,'type':entity_type,'name':name,'sensitivity':sensitivity,'metadata':safe_metadata}})
+    except Exception as error:self.reply(503,{'error':'Η οντότητα δεν αποθηκεύτηκε: '+str(error).splitlines()[0][:120]})
+    return
+   if path=='/api/kv/layout' and self.command=='PUT':
+    layout=payload.get('layout')
+    if not isinstance(layout,list) or len(layout)>20:
+     self.reply(400,{'error':'Μη έγκυρη διάταξη dashboard.'});return
+    normalized=[]
+    try:
+     for item in layout:
+      if not isinstance(item,dict) or item.get('i') not in KV_LAYOUT_IDS: raise ValueError
+      values={key:int(item[key]) for key in ('x','y','w','h')}
+      if values['x']<0 or values['y']<0 or values['w']<1 or values['w']>12 or values['h']<1 or values['h']>8: raise ValueError
+      normalized.append({'i':item['i'],**values})
+    except (KeyError,TypeError,ValueError):
+     self.reply(400,{'error':'Μη έγκυρες θέσεις widget.'});return
+    try:
+     with kv_connect() as kvdb:
+      with kvdb.cursor() as cur:cur.execute('''INSERT INTO kv.dashboard_layouts(user_id,layout,updated_at) VALUES (%s,%s::jsonb,now())
+        ON CONFLICT(user_id) DO UPDATE SET layout=EXCLUDED.layout,updated_at=now()''',(user['id'],json.dumps(normalized)))
+      kv_event(kvdb,user,'dashboard-layout-updated','success','dashboard',str(user['id']),{'widgetCount':len(normalized)})
+     self.reply(200,{'layout':normalized})
+    except Exception as error:self.reply(503,{'error':'Η διάταξη δεν αποθηκεύτηκε: '+str(error).splitlines()[0][:120]})
+    return
+   relationship_match=re.fullmatch(r'/api/kv/entities/([a-f0-9]{32})/relationships',path)
+   if relationship_match and self.command=='POST':
+    from_entity=relationship_match.group(1); to_entity=payload.get('toEntityId'); relation=payload.get('relation')
+    if not isinstance(to_entity,str) or not re.fullmatch(r'[a-f0-9]{32}',to_entity) or relation not in ('owns','works_at','located_at','contains','uses','belongs_to','related_to'):
+     self.reply(400,{'error':'Μη έγκυρη σχέση KV.'});return
+    try:
+     with kv_connect() as kvdb:
+      if not kv_has_permission(kvdb,user['id'],from_entity,'manage') or not kv_has_permission(kvdb,user['id'],to_entity,'edit'):
+       kv_event(kvdb,user,'relationship-created','denied','relationship',from_entity,{'relation':relation})
+       self.reply(403,{'error':'Δεν έχεις δικαίωμα να συνδέσεις αυτές τις οντότητες.'});return
+      with kvdb.cursor() as cur:cur.execute('INSERT INTO kv.entity_relationships(from_entity_id,to_entity_id,relation_type,created_by) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id',(from_entity,to_entity,relation,user['id']))
+      created=cur.fetchone()
+      kv_event(kvdb,user,'relationship-created','success','relationship',from_entity,{'relation':relation,'toEntityId':to_entity})
+     self.reply(201,{'ok':True,'id':created[0] if created else None})
+    except Exception as error:self.reply(503,{'error':'Η σχέση δεν αποθηκεύτηκε: '+str(error).splitlines()[0][:120]})
+    return
    if user['role']!='admin':self.reply(403,{'error':'Μόνο ο διαχειριστής μπορεί να αλλάξει ρυθμίσεις.'});return
    if path=='/api/admin/vessel-filters' and self.command=='PUT':
     values=payload.get('vesselFilters')

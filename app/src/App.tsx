@@ -9,6 +9,7 @@ import { MapLayers, type OverlayKey, type Plane, type AirReading, type EEAReadin
 import { Seaviolet } from './Seaviolet';
 import { Admin } from './Admin';
 import { defaultFlags, type Flags } from './adminPolicy';
+import KVWorkspace from './KVWorkspace';
 import './App.css';
 
 type Panel = 'map' | 'catalog' | 'seaviolet' | 'admin';
@@ -270,7 +271,7 @@ function EEAStationCard({ reading, onClose }: { reading: EEAReading; onClose: ()
   </div>;
 }
 
-function App() {
+function SpatialApp() {
   const mapRef = useRef<LeafletMap | null>(null);
   const [panel, setPanel] = useState<Panel>(() => { const saved = sessionStorage.getItem('kapavita-panel'); return saved === 'catalog' || saved === 'seaviolet' || saved === 'admin' ? saved : 'map'; });
   const [features, setFeatures] = useState<Flags>(defaultFlags);
@@ -398,7 +399,9 @@ function App() {
     </main>
   </div>;
 }
-export default App;
+export default function App() {
+  return window.location.pathname === '/kv' || window.location.pathname.startsWith('/kv/') ? <KVWorkspace /> : <SpatialApp />;
+}
 
 
 

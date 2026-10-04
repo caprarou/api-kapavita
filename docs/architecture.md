@@ -1,5 +1,10 @@
 # Architecture and next milestones
 
+> Canonical cross-product decisions live in `docs/KV_MASTER_GUIDE.md`, `docs/PROJECT_MEMORY.md`,
+> `docs/FEATURE_STATUS.md`, `docs/ROADMAP.md`, `docs/DECISION_LOG.md`, `docs/integrations.md` and
+> `docs/security.md`. This file remains the subsystem contract for the existing Spatial
+> Intelligence map and catalog.
+
 ## Product direction
 
 The map is the central surface. Region, municipality and marine-area selection must come from
